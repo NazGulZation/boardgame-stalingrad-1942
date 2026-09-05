@@ -73,8 +73,10 @@ turn."`, `"It is not the <Team>'s turn."`, `"The battle is over."`,
 | `board.terrain` | `string[][]` `[y][x]` | `"open" \| "ruins" \| "river" \| "ferry"` |
 | `units[]` | object[] | **alive units only**; `id`, `type` (`"rifle"\|"sniper"\|"tank"`), `name`, `team`, `x`, `y`, `hp`, `max_hp`, `move`, `attack`, `range`, `moved`, `attacked` |
 | `objectives[]` | object[] | `name`, `x`, `y`, `controlled_by` (`null` or team) |
-| `log[]` | string[] | last 25 battle-log entries |
 | `ai` | `{"axis": bool, "soviet": bool}` | which sides are computer-controlled (optional extra field) |
+| `ai_types` | `{"axis": "heuristic"\|"rl", "soviet": "heuristic"\|"rl"}` | AI algorithm per side |
+| `ai_models` | `{"axis": str\|null, "soviet": str\|null}` | active checkpoint per side |
+| `training` | object | RL training telemetry and checkpoint list |
 
 ### Behavior notes
 

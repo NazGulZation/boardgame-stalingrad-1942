@@ -20,7 +20,11 @@ const overlayTitleEl = document.getElementById("overlay-title");
 const overlayTextEl = document.getElementById("overlay-text");
 const aiAxisEl = document.getElementById("ai-axis");
 const aiSovietEl = document.getElementById("ai-soviet");
-const modelSelectEl = document.getElementById("model-select");
+const modelSelectAxisEl = document.getElementById("model-select-axis");
+const modelSelectSovietEl = document.getElementById("model-select-soviet");
+const wrapModelAxisEl = document.getElementById("wrap-model-axis");
+const wrapModelSovietEl = document.getElementById("wrap-model-soviet");
+const trainResumeSelectEl = document.getElementById("train-resume-select");
 const trainStatusBadgeEl = document.getElementById("train-status-badge");
 const trainStepsEl = document.getElementById("train-steps");
 const btnTrainStartEl = document.getElementById("btn-train-start");
@@ -98,10 +102,43 @@ function syncAiControls() {
     const sovietRadio = document.querySelector(`input[name="ai-type-soviet"][value="${state.ai_types.soviet || 'heuristic'}"]`);
     if (sovietRadio) sovietRadio.checked = true;
   }
+  if (state.ai_models) {
+    if (state.ai_models.axis && modelSelectAxisEl.value !== state.ai_models.axis) {
+      modelSelectAxisEl.value = state.ai_models.axis;
+    }
+    if (state.ai_models.soviet && modelSelectSovietEl.value !== state.ai_models.soviet) {
+      modelSelectSovietEl.value = state.ai_models.soviet;
+    }
+  }
   if (state.training) {
     renderTraining(state.training);
   }
   syncingAi = false;
+}
+
+function populateSelect(selectEl, checkpoints, selectedVal, defaultText, allowEmpty) {
+  if (!selectEl) return;
+  const prevVal = selectEl.value;
+  selectEl.innerHTML = "";
+  if (allowEmpty) {
+    const emptyOpt = document.createElement("option");
+    emptyOpt.value = "";
+    emptyOpt.textContent = defaultText;
+    selectEl.appendChild(emptyOpt);
+  }
+  if (checkpoints && checkpoints.length > 0) {
+    for (const cp of checkpoints) {
+      const opt = document.createElement("option");
+      opt.value = cp;
+      opt.textContent = cp;
+      if (cp === selectedVal || (!selectedVal && cp === prevVal)) {
+        opt.selected = true;
+      }
+      selectEl.appendChild(opt);
+    }
+  } else if (!allowEmpty) {
+    selectEl.innerHTML = `<option value="">${defaultText}</option>`;
+  }
 }
 
 function renderTraining(t) {
@@ -124,21 +161,12 @@ function renderTraining(t) {
   trainValueLossEl.textContent = t.value_loss !== undefined && t.value_loss !== null ? t.value_loss : "--";
   trainElapsedEl.textContent = `${Math.round(t.elapsed || 0)}s`;
 
-  if (t.checkpoints && t.checkpoints.length > 0) {
-    const currentVal = modelSelectEl.value || t.active_checkpoint;
-    modelSelectEl.innerHTML = "";
-    for (const cp of t.checkpoints) {
-      const opt = document.createElement("option");
-      opt.value = cp;
-      opt.textContent = cp;
-      if (cp === t.active_checkpoint || (!t.active_checkpoint && cp === currentVal)) {
-        opt.selected = true;
-      }
-      modelSelectEl.appendChild(opt);
-    }
-  } else {
-    modelSelectEl.innerHTML = '<option value="">No checkpoint available</option>';
-  }
+  const axisCurrent = (state && state.ai_models && state.ai_models.axis) || (t.team_checkpoints && t.team_checkpoints.axis) || t.active_checkpoint;
+  const sovietCurrent = (state && state.ai_models && state.ai_models.soviet) || (t.team_checkpoints && t.team_checkpoints.soviet) || t.active_checkpoint;
+
+  populateSelect(modelSelectAxisEl, t.checkpoints, axisCurrent, "No checkpoint available", false);
+  populateSelect(modelSelectSovietEl, t.checkpoints, sovietCurrent, "No checkpoint available", false);
+  populateSelect(trainResumeSelectEl, t.checkpoints, trainResumeSelectEl.value, "Start from scratch (New model)", true);
 }
 
 
@@ -298,8 +326,10 @@ function renderLog() {
   logListEl.scrollTop = logListEl.scrollHeight;
 }
 
+let overlayDismissed = false;
+
 function renderOverlay() {
-  if (!state.winner) {
+  if (!state.winner || overlayDismissed) {
     overlayEl.classList.add("hidden");
     return;
   }
@@ -315,6 +345,24 @@ function renderOverlay() {
   overlayTextEl.textContent = reason;
 }
 
+function dismissOverlay() {
+  overlayDismissed = true;
+  overlayEl.classList.add("hidden");
+}
+
+document.getElementById("btn-overlay-close").addEventListener("click", dismissOverlay);
+document.getElementById("btn-close-overlay").addEventListener("click", dismissOverlay);
+
+overlayEl.addEventListener("click", (e) => {
+  if (e.target === overlayEl) dismissOverlay();
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !overlayEl.classList.contains("hidden")) {
+    dismissOverlay();
+  }
+});
+
 document.getElementById("btn-end-turn").addEventListener("click", async () => {
   if (busy || !state || state.winner) return;
   busy = true;
@@ -324,6 +372,7 @@ document.getElementById("btn-end-turn").addEventListener("click", async () => {
 });
 
 async function resetGame() {
+  overlayDismissed = false;
   busy = true;
   const data = await api("/api/reset", {});
   busy = false;
@@ -352,9 +401,18 @@ aiSovietEl.addEventListener("change", onAiToggle);
 
 btnTrainStartEl.addEventListener("click", async () => {
   const steps = parseInt(trainStepsEl.value, 10) || 20000;
+  const resumeCp = trainResumeSelectEl.value || null;
   btnTrainStartEl.disabled = true;
-  showMessage("Launching RL training on GPU...");
-  const res = await api("/api/training/start", { total_timesteps: steps, num_envs: 4 });
+  if (resumeCp) {
+    showMessage(`Resuming training from ${resumeCp} on GPU...`);
+  } else {
+    showMessage("Launching RL training from scratch on GPU...");
+  }
+  const res = await api("/api/training/start", {
+    total_timesteps: steps,
+    num_envs: 4,
+    resume_checkpoint: resumeCp,
+  });
   if (res && res.training) renderTraining(res.training);
 });
 
@@ -365,11 +423,16 @@ btnTrainStopEl.addEventListener("click", async () => {
   if (res && res.training) renderTraining(res.training);
 });
 
-modelSelectEl.addEventListener("change", async () => {
-  const selected = modelSelectEl.value;
+modelSelectAxisEl.addEventListener("change", async () => {
+  const selected = modelSelectAxisEl.value;
   if (!selected) return;
-  const res = await api("/api/training/select_model", { model: selected });
-  if (res && res.training) renderTraining(res.training);
+  await api("/api/set_ai_type", { axis_model: selected });
+});
+
+modelSelectSovietEl.addEventListener("change", async () => {
+  const selected = modelSelectSovietEl.value;
+  if (!selected) return;
+  await api("/api/set_ai_type", { soviet_model: selected });
 });
 
 document.querySelectorAll('input[name="ai-type-axis"], input[name="ai-type-soviet"]').forEach((radio) => {
@@ -377,7 +440,12 @@ document.querySelectorAll('input[name="ai-type-axis"], input[name="ai-type-sovie
     const axisEl = document.querySelector('input[name="ai-type-axis"]:checked');
     const sovietEl = document.querySelector('input[name="ai-type-soviet"]:checked');
     if (!axisEl || !sovietEl) return;
-    await api("/api/set_ai_type", { axis: axisEl.value, soviet: sovietEl.value });
+    await api("/api/set_ai_type", {
+      axis: axisEl.value,
+      soviet: sovietEl.value,
+      axis_model: modelSelectAxisEl.value || undefined,
+      soviet_model: modelSelectSovietEl.value || undefined,
+    });
   });
 });
 

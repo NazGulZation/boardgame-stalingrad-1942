@@ -23,6 +23,10 @@ def _state():
     data = GAME.to_dict()
     data["ai"] = dict(AI_SIDES)
     data["ai_types"] = dict(AI_TYPES)
+    data["ai_models"] = {
+        "axis": TRAINING_MANAGER.get_team_checkpoint("axis"),
+        "soviet": TRAINING_MANAGER.get_team_checkpoint("soviet"),
+    }
     data["training"] = TRAINING_MANAGER.get_status()
     return data
 
@@ -93,6 +97,16 @@ def set_ai_type():
     for team in ("axis", "soviet"):
         if team in data and data[team] in ("heuristic", "rl"):
             AI_TYPES[team] = data[team]
+    if "axis_model" in data and data["axis_model"]:
+        try:
+            TRAINING_MANAGER.set_team_checkpoint("axis", data["axis_model"])
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+    if "soviet_model" in data and data["soviet_model"]:
+        try:
+            TRAINING_MANAGER.set_team_checkpoint("soviet", data["soviet_model"])
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
     if "checkpoint" in data and data["checkpoint"]:
         try:
             TRAINING_MANAGER.set_active_checkpoint(data["checkpoint"])
@@ -109,7 +123,7 @@ def ai_turn():
                       % TEAM_NAMES[GAME.turn]}), 400
     try:
         if AI_TYPES.get(GAME.turn) == "rl":
-            agent = TRAINING_MANAGER.get_active_agent()
+            agent = TRAINING_MANAGER.get_agent_for_team(GAME.turn)
             if agent is not None:
                 agent.play_turn(GAME, GAME.turn)
             else:
@@ -132,9 +146,13 @@ def training_start():
     total_timesteps = data.get("total_timesteps", 10000)
     num_envs = data.get("num_envs", 4)
     lr = data.get("learning_rate", 2.5e-4)
+    resume_checkpoint = data.get("resume_checkpoint")
 
     success, message = TRAINING_MANAGER.start_training(
-        total_timesteps=total_timesteps, num_envs=num_envs, lr=lr
+        total_timesteps=total_timesteps,
+        num_envs=num_envs,
+        lr=lr,
+        resume_checkpoint=resume_checkpoint,
     )
     if not success:
         return jsonify({"error": message}), 400

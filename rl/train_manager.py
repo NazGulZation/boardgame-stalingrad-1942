@@ -23,8 +23,8 @@ class TrainingManager:
         self.proc = None
         self.start_time = None
         self.active_checkpoint = None
-        self._cached_agent = None
-        self._cached_path = None
+        self.team_checkpoints = {"axis": None, "soviet": None}
+        self._agent_cache = {}
         os.makedirs(checkpoints_dir, exist_ok=True)
 
     def _get_python_exe(self):
@@ -32,7 +32,7 @@ class TrainingManager:
             return CONDA_RL_PYTHON
         return sys.executable
 
-    def start_training(self, total_timesteps=10000, num_envs=4, lr=2.5e-4):
+    def start_training(self, total_timesteps=10000, num_envs=4, lr=2.5e-4, resume_checkpoint=None):
         """Start PPO training in a background subprocess."""
         if self.is_running():
             return False, "Training is already in progress."
@@ -48,6 +48,13 @@ class TrainingManager:
             "--save-dir", self.checkpoints_dir,
         ]
 
+        if resume_checkpoint:
+            resume_path = os.path.join(self.checkpoints_dir, resume_checkpoint)
+            if not os.path.isfile(resume_path) and os.path.isfile(resume_checkpoint):
+                resume_path = resume_checkpoint
+            if os.path.isfile(resume_path):
+                cmd.extend(["--resume-checkpoint", resume_path])
+
         # Initialize status file
         initial_status = {
             "status": "training",
@@ -59,6 +66,7 @@ class TrainingManager:
             "value_loss": 0.0,
             "win_rate": 0.0,
             "elapsed": 0.0,
+            "resumed_from": resume_checkpoint if resume_checkpoint else None,
         }
         with open(self.status_file, "w") as f:
             json.dump(initial_status, f, indent=2)
@@ -123,6 +131,7 @@ class TrainingManager:
             "elapsed": 0.0,
             "checkpoints": self.list_checkpoints(),
             "active_checkpoint": self.active_checkpoint,
+            "team_checkpoints": dict(self.team_checkpoints),
         }
 
         if os.path.exists(self.status_file):
@@ -137,6 +146,9 @@ class TrainingManager:
             status_data["status"] = "completed"
 
         status_data["is_running"] = running
+        status_data["checkpoints"] = self.list_checkpoints()
+        status_data["active_checkpoint"] = self.active_checkpoint
+        status_data["team_checkpoints"] = dict(self.team_checkpoints)
         return status_data
 
     def list_checkpoints(self):
@@ -150,37 +162,67 @@ class TrainingManager:
         files.sort(reverse=True)
         return files
 
-    def set_active_checkpoint(self, filename):
-        """Set which model checkpoint to use for RL gameplay."""
+    def set_team_checkpoint(self, team, filename):
+        """Set which model checkpoint to use for a specific team."""
+        if team not in ("axis", "soviet"):
+            raise ValueError(f"Invalid team: {team}")
+        if not filename:
+            self.team_checkpoints[team] = None
+            return True
         full_path = os.path.join(self.checkpoints_dir, filename)
         if not os.path.isfile(full_path):
             raise ValueError(f"Checkpoint not found: {filename}")
+        self.team_checkpoints[team] = filename
         self.active_checkpoint = filename
-        self._cached_agent = None
-        self._cached_path = None
         return True
 
-    def get_active_agent(self):
-        """Return cached RLAgent for the active checkpoint."""
-        if not self.active_checkpoint:
-            checkpoints = self.list_checkpoints()
-            if checkpoints:
-                self.active_checkpoint = checkpoints[0]
-            else:
-                return None
+    def get_team_checkpoint(self, team):
+        """Return the active checkpoint filename for a team."""
+        cp = self.team_checkpoints.get(team)
+        if cp:
+            return cp
+        if self.active_checkpoint:
+            return self.active_checkpoint
+        checkpoints = self.list_checkpoints()
+        if checkpoints:
+            return checkpoints[0]
+        return None
 
-        full_path = os.path.join(self.checkpoints_dir, self.active_checkpoint)
-        if self._cached_agent is not None and self._cached_path == full_path:
-            return self._cached_agent
+    def set_active_checkpoint(self, filename):
+        """Set active checkpoint (backwards compatibility)."""
+        self.set_team_checkpoint("axis", filename)
+        self.set_team_checkpoint("soviet", filename)
+        return True
+
+    def get_agent_for_file(self, filename):
+        """Load and cache RLAgent for a given checkpoint filename."""
+        if not filename:
+            return None
+        full_path = os.path.join(self.checkpoints_dir, filename)
+        if not os.path.isfile(full_path):
+            return None
+        if filename in self._agent_cache:
+            return self._agent_cache[filename]
 
         try:
             from rl.agent import RLAgent
-            self._cached_agent = RLAgent(full_path)
-            self._cached_path = full_path
-            return self._cached_agent
+            agent = RLAgent(full_path)
+            self._agent_cache[filename] = agent
+            return agent
         except Exception as exc:
-            print(f"Error loading RLAgent: {exc}")
+            print(f"Error loading RLAgent for {filename}: {exc}")
             return None
+
+    def get_agent_for_team(self, team):
+        """Return cached RLAgent for the specified team."""
+        cp = self.get_team_checkpoint(team)
+        if not cp:
+            return None
+        return self.get_agent_for_file(cp)
+
+    def get_active_agent(self):
+        """Return cached RLAgent (backwards compatibility)."""
+        return self.get_agent_for_team("axis")
 
 
 TRAINING_MANAGER = TrainingManager()

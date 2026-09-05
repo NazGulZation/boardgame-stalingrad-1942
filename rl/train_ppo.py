@@ -98,6 +98,8 @@ def parse_args():
                         help="directory to save model checkpoints")
     parser.add_argument("--status-file", type=str, default="checkpoints/train_status.json",
                         help="path to write live JSON status updates")
+    parser.add_argument("--resume-checkpoint", type=str, default="",
+                        help="path to existing checkpoint (.pt) to resume training from")
 
     args = parser.parse_args()
     args.batch_size = int(args.num_envs * args.num_steps)
@@ -130,6 +132,11 @@ def train():
 
     # Agent setup
     agent = StalingradResNet().to(device)
+    if args.resume_checkpoint and os.path.isfile(args.resume_checkpoint):
+        print(f"Resuming training from checkpoint: {args.resume_checkpoint}")
+        state_dict = torch.load(args.resume_checkpoint, map_location=device, weights_only=True)
+        agent.load_state_dict(state_dict)
+
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # Storage setup
@@ -308,6 +315,7 @@ def train():
             print(f"--- Eval @ step {global_step}: Axis Win Rate vs Heuristic AI: {last_win_rate*100:.1f}% | Avg Rounds: {eval_res['avg_rounds']:.1f} ---")
 
         # Write live progress to status file
+        resumed_name = os.path.basename(args.resume_checkpoint) if args.resume_checkpoint else None
         status_data = {
             "status": "training",
             "step": global_step,
@@ -319,6 +327,7 @@ def train():
             "win_rate": round(last_win_rate * 100, 1),
             "elapsed": round(time.time() - start_time, 1),
             "device": str(device),
+            "resumed_from": resumed_name,
         }
         write_status(args.status_file, status_data)
 

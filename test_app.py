@@ -210,6 +210,22 @@ class TestTrainingEndpoints(AppTestBase):
         self.assertEqual(data["ai_types"]["axis"], "rl")
         self.assertEqual(data["ai_types"]["soviet"], "heuristic")
 
+    def test_state_includes_ai_models(self):
+        data = self.client.get("/api/state").get_json()
+        self.assertIn("ai_models", data)
+        self.assertIn("axis", data["ai_models"])
+        self.assertIn("soviet", data["ai_models"])
+
+    def test_set_per_team_models(self):
+        cps = app_module.TRAINING_MANAGER.list_checkpoints()
+        if cps:
+            cp = cps[0]
+            res = self.client.post("/api/set_ai_type", json={"axis_model": cp, "soviet_model": cp})
+            self.assertEqual(res.status_code, 200)
+            data = res.get_json()
+            self.assertEqual(data["ai_models"]["axis"], cp)
+            self.assertEqual(data["ai_models"]["soviet"], cp)
+
     def test_select_nonexistent_model_returns_400(self):
         res = self.client.post("/api/training/select_model", json={"model": "non_existent_12345.pt"})
         self.assertEqual(res.status_code, 400)
