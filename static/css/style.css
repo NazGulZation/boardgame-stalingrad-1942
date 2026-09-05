@@ -1,0 +1,222 @@
+:root {
+  --axis: #8d99ae;
+  --soviet: #c1443c;
+  --snow: #eef2f5;
+  --panel: #ffffff;
+  --ink: #22303c;
+  --river: #33506e;
+  --ferry: #4a6d94;
+  --ruins: #9aa0a6;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Arial, sans-serif;
+  color: var(--ink);
+  background: linear-gradient(180deg, #dfe7ee 0%, var(--snow) 100%);
+  min-height: 100vh;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 10px 24px;
+  background: #2b3948;
+  color: #fff;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.banner {
+  padding: 4px 14px;
+  border-radius: 14px;
+  font-weight: 600;
+}
+
+.banner.axis { background: var(--axis); color: #1d2430; }
+.banner.soviet { background: var(--soviet); color: #fff; }
+
+#message {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #b3261e;
+  color: #fff;
+  padding: 8px 18px;
+  border-radius: 6px;
+  z-index: 30;
+}
+
+.hidden { display: none !important; }
+
+main {
+  display: flex;
+  gap: 20px;
+  padding: 20px 24px;
+  align-items: flex-start;
+}
+
+#board-wrap { flex: 0 0 auto; }
+
+#board {
+  display: grid;
+  gap: 2px;
+  background: #7c8792;
+  padding: 4px;
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .25);
+}
+
+.cell {
+  width: 46px;
+  height: 46px;
+  position: relative;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.terrain-open { background: #f4f6f8; }
+.terrain-ruins {
+  background:
+    repeating-linear-gradient(45deg, #b6bcc2 0 6px, var(--ruins) 6px 12px);
+}
+.terrain-river { background: var(--river); }
+.terrain-ferry {
+  background: repeating-linear-gradient(
+    0deg, var(--ferry) 0 8px, #d9c9a3 8px 12px);
+}
+
+.cell.objective::after {
+  content: "\2605";
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  font-size: 12px;
+  color: #c99a1e;
+}
+
+.cell.held-axis::after { color: #2b3948; }
+.cell.held-soviet::after { color: #7e1d17; }
+
+.unit {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  border: 2px solid #1d2430;
+  pointer-events: none;
+}
+
+.unit-rifle { border-radius: 6px; }
+.unit-sniper { border-radius: 50%; }
+.unit-tank { border-radius: 3px; width: 36px; height: 36px; }
+
+.unit-axis { background: var(--axis); color: #1d2430; }
+.unit-soviet { background: var(--soviet); }
+
+.hl-move { outline: 3px solid #2e9e4f; outline-offset: -3px; }
+.hl-target {
+  outline: 3px solid #d43a2f;
+  outline-offset: -3px;
+  animation: pulse 1s infinite;
+}
+.selected { box-shadow: inset 0 0 0 3px #c99a1e; }
+
+@keyframes pulse {
+  50% { outline-color: #ffd7d3; }
+}
+
+#sidebar {
+  flex: 1 1 320px;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#sidebar section {
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .12);
+}
+
+#sidebar h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #5a6b7c;
+}
+
+#unit-details { font-size: 14px; line-height: 1.5; }
+
+#objective-list, #log-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+#log-list { max-height: 180px; overflow-y: auto; }
+
+.ctrl-axis { color: #2b3948; font-weight: 600; }
+.ctrl-soviet { color: #a02a22; font-weight: 600; }
+.ctrl-none { color: #8a97a5; font-style: italic; }
+
+.buttons { display: flex; gap: 10px; }
+
+button {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  background: #2b3948;
+  color: #fff;
+  cursor: pointer;
+}
+
+button:hover { background: #3c4f63; }
+
+.hint { font-size: 12px; color: #5a6b7c; max-width: 570px; }
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 28, 36, .7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+}
+
+#overlay-box {
+  background: #fff;
+  padding: 30px 40px;
+  border-radius: 10px;
+  text-align: center;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .4);
+}
+
+#overlay-box h2 { margin-top: 0; }
+
+#overlay-box button { flex: none; margin-top: 8px; }

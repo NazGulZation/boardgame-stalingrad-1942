@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stalingrad 1942 - Board Wargame</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <header>
+    <h1>Stalingrad 1942</h1>
+    <div id="banner" class="banner axis">Loading...</div>
+  </header>
+  <div id="message" class="hidden"></div>
+  <main>
+    <section id="board-wrap">
+      <div id="board"></div>
+      <p class="hint">Click one of your units, then a green tile to move or a
+        red enemy to attack. Attacking uses up the unit's whole turn.</p>
+    </section>
+    <aside id="sidebar">
+      <section>
+        <h2>Selected unit</h2>
+        <div id="unit-details">Click one of your units.</div>
+      </section>
+      <section>
+        <h2>Objectives</h2>
+        <ul id="objective-list"></ul>
+      </section>
+      <section>
+        <h2>Battle log</h2>
+        <ul id="log-list"></ul>
+      </section>
+      <section class="buttons">
+        <button id="btn-end-turn">End turn</button>
+        <button id="btn-reset">Restart battle</button>
+      </section>
+      <section>
+        <h2>How to win</h2>
+        <p>After 12 rounds the side holding more of the 5 objectives wins
+          (a split means Soviet victory). Destroy every enemy unit for an
+          immediate win. A Soviet reinforcement lands near the ferry in
+          round 3.</p>
+      </section>
+    </aside>
+  </main>
+  <div id="overlay" class="hidden">
+    <div id="overlay-box">
+      <h2 id="overlay-title"></h2>
+      <p id="overlay-text"></p>
+      <button id="btn-again">Play again</button>
+    </div>
+  </div>
+  <script src="{{ url_for('static', filename='js/game.js') }}"></script>
+</body>
+</html>
