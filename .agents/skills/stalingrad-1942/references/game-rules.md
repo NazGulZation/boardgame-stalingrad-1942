@@ -102,7 +102,7 @@ occupied, no reinforcement lands that round.
 4. **Attack**: range is Chebyshev distance. Costs the unit its whole turn
    (sets both `attacked` and `moved`).
 5. `end_turn()` switches sides, resets every alive unit's flags, then checks
-   elimination and ((on the Soviet turn of round 2)) spawns the reinforcement.
+   elimination and (on the Soviet turn of round 2) spawns the reinforcement.
 
 ## Combat
 
