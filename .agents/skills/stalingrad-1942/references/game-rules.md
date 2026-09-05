@@ -9,7 +9,7 @@ engine. Source of truth is the code; this reference mirrors it.
 
 - **Axis (Grey)** — German 6th Army, deploys on the west bank, moves first.
 - **Soviet (Red)** — 62nd Army, deploys on the east bank, crosses the Volga
-  via the ferry, receives one reinforcement in round 3.
+  via the ferry, receives one reinforcement in round 2.
 
 ## Board
 
@@ -102,7 +102,7 @@ occupied, no reinforcement lands that round.
 4. **Attack**: range is Chebyshev distance. Costs the unit its whole turn
    (sets both `attacked` and `moved`).
 5. `end_turn()` switches sides, resets every alive unit's flags, then checks
-   elimination and (on the Soviet turn of round 3) spawns the reinforcement.
+   elimination and ((on the Soviet turn of round 2)) spawns the reinforcement.
 
 ## Combat
 

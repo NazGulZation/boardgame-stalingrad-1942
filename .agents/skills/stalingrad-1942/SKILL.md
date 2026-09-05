@@ -108,7 +108,7 @@ conventions, and validation rules so you can extend or refactor safely.
 1. Write a temporary script that loops `Game(rng=random.Random(seed))` ->
    `play_turn(game, game.turn)` until `game.winner`, collecting win rates,
    win type (elimination vs objective), rounds, and objectives held.
-2. Run >= 1000 games. Target: ~40-60% win split, 30-60% reaching the
+2. Run >= 1000 games. Target: ~40-60% win split, ~60-90% reaching the
    round-12 objective vote, and variable attack counts (not a fixed number —
    a fixed count means combat is fully deterministic and the dice don't matter).
 3. Delete the temporary script when done — it is a diagnostic, not a project file.
