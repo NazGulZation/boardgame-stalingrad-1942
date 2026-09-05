@@ -132,9 +132,25 @@ def train():
 
     # Agent setup
     agent = StalingradResNet().to(device)
+    prior_steps = 0
     if args.resume_checkpoint and os.path.isfile(args.resume_checkpoint):
         print(f"Resuming training from checkpoint: {args.resume_checkpoint}")
-        state_dict = torch.load(args.resume_checkpoint, map_location=device, weights_only=True)
+        raw = torch.load(args.resume_checkpoint, map_location=device, weights_only=True)
+        if isinstance(raw, dict) and "model_state_dict" in raw:
+            state_dict = raw["model_state_dict"]
+            prior_steps = raw.get("total_steps", 0)
+        else:
+            state_dict = raw
+            meta_path = os.path.join(args.save_dir, "checkpoints_meta.json")
+            cp_base = os.path.basename(args.resume_checkpoint)
+            if os.path.isfile(meta_path):
+                try:
+                    with open(meta_path, "r") as mf:
+                        meta = json.load(mf)
+                        if cp_base in meta:
+                            prior_steps = meta[cp_base].get("total_steps", 0)
+                except Exception:
+                    pass
         agent.load_state_dict(state_dict)
 
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
@@ -332,9 +348,29 @@ def train():
         write_status(args.status_file, status_data)
 
     # Save final model
+    total_completed_steps = prior_steps + global_step
     save_path = os.path.join(args.save_dir, f"{args.exp_name}_final.pt")
-    torch.save(agent.state_dict(), save_path)
-    print(f"Model saved to {save_path}")
+    torch.save({
+        "model_state_dict": agent.state_dict(),
+        "total_steps": total_completed_steps,
+    }, save_path)
+    print(f"Model saved to {save_path} (total steps: {total_completed_steps})")
+
+    # Update checkpoints_meta.json
+    try:
+        meta_path = os.path.join(args.save_dir, "checkpoints_meta.json")
+        meta = {}
+        if os.path.isfile(meta_path):
+            with open(meta_path, "r") as mf:
+                meta = json.load(mf)
+        meta[os.path.basename(save_path)] = {
+            "total_steps": total_completed_steps,
+            "timestamp": int(time.time()),
+        }
+        with open(meta_path, "w") as mf:
+            json.dump(meta, mf, indent=2)
+    except Exception as exc:
+        print(f"Warning: could not write checkpoints_meta.json: {exc}")
 
     # Mark completed in status file
     status_data["status"] = "completed"

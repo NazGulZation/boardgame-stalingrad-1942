@@ -30,7 +30,8 @@ class RLAgent:
 
         if isinstance(model_or_path, str):
             self.model = StalingradResNet().to(self.device)
-            state_dict = torch.load(model_or_path, map_location=self.device, weights_only=True)
+            raw = torch.load(model_or_path, map_location=self.device, weights_only=True)
+            state_dict = raw.get("model_state_dict", raw) if isinstance(raw, dict) and "model_state_dict" in raw else raw
             self.model.load_state_dict(state_dict)
         else:
             self.model = model_or_path.to(self.device)

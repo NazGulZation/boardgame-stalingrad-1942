@@ -1,6 +1,7 @@
 """Integration tests for app.py using the Flask test client (no server)."""
 
 import unittest
+from unittest import mock
 
 import app as app_module
 from game import Game
@@ -201,7 +202,24 @@ class TestTrainingEndpoints(AppTestBase):
         data = res.get_json()
         self.assertIn("status", data)
         self.assertIn("checkpoints", data)
+        self.assertIn("checkpoint_steps", data)
+        self.assertIsInstance(data["checkpoint_steps"], dict)
         self.assertIn("progress", data)
+        if "stalingrad_1v1_ppo_final.pt" in data["checkpoints"]:
+            self.assertGreater(data["checkpoint_steps"].get("stalingrad_1v1_ppo_final.pt", 0), 0)
+
+    def test_checkpoint_steps_tracking(self):
+        steps = app_module.TRAINING_MANAGER.get_checkpoint_steps("stalingrad_1v1_ppo_final.pt")
+        self.assertIsInstance(steps, int)
+        self.assertGreater(steps, 0)
+        self.assertIsNone(app_module.TRAINING_MANAGER.get_checkpoint_steps("nonexistent.pt"))
+
+    @mock.patch.object(app_module.TRAINING_MANAGER, "start_training", return_value=(True, "started"))
+    def test_training_start_custom_timesteps(self, mock_start):
+        res = self.client.post("/api/training/start", json={"total_timesteps": 35000})
+        self.assertEqual(res.status_code, 200)
+        mock_start.assert_called_once()
+        self.assertEqual(mock_start.call_args[1]["total_timesteps"], 35000)
 
     def test_set_ai_type(self):
         res = self.client.post("/api/set_ai_type", json={"axis": "rl", "soviet": "heuristic"})

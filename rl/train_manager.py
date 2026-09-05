@@ -24,6 +24,8 @@ class TrainingManager:
         self.start_time = None
         self.active_checkpoint = None
         self.team_checkpoints = {"axis": None, "soviet": None}
+        self.metadata_file = os.path.join(checkpoints_dir, "checkpoints_meta.json")
+        self._checkpoint_steps_cache = {}
         self._agent_cache = {}
         os.makedirs(checkpoints_dir, exist_ok=True)
 
@@ -147,9 +149,89 @@ class TrainingManager:
 
         status_data["is_running"] = running
         status_data["checkpoints"] = self.list_checkpoints()
+        status_data["checkpoint_steps"] = self.get_all_checkpoint_steps()
         status_data["active_checkpoint"] = self.active_checkpoint
         status_data["team_checkpoints"] = dict(self.team_checkpoints)
         return status_data
+
+    def get_checkpoint_steps(self, filename):
+        """Return the total steps completed by a given checkpoint filename."""
+        if not filename:
+            return None
+        filename = os.path.basename(filename)
+
+        full_path = os.path.join(self.checkpoints_dir, filename)
+        if not os.path.isfile(full_path):
+            return None
+
+        mtime = os.path.getmtime(full_path)
+        if filename in self._checkpoint_steps_cache:
+            cached_mtime, cached_steps = self._checkpoint_steps_cache[filename]
+            if cached_mtime == mtime:
+                return cached_steps
+
+        steps = None
+
+        # 1. Check metadata file
+        if os.path.isfile(self.metadata_file):
+            try:
+                with open(self.metadata_file, "r") as mf:
+                    meta = json.load(mf)
+                    if filename in meta and isinstance(meta[filename], dict):
+                        steps = meta[filename].get("total_steps")
+            except Exception:
+                pass
+
+        # 2. Check train_status.json if latest_checkpoint matches
+        if steps is None and os.path.isfile(self.status_file):
+            try:
+                with open(self.status_file, "r") as sf:
+                    sdata = json.load(sf)
+                    latest_cp = sdata.get("latest_checkpoint")
+                    if latest_cp and os.path.basename(latest_cp) == filename:
+                        steps = sdata.get("step") or sdata.get("total_steps")
+            except Exception:
+                pass
+
+        # 3. If still None, inspect .pt file
+        if steps is None:
+            try:
+                import torch
+                raw = torch.load(full_path, map_location="cpu", weights_only=True)
+                if isinstance(raw, dict):
+                    steps = raw.get("total_steps") or raw.get("step") or raw.get("global_step")
+            except Exception:
+                pass
+
+        if steps is not None:
+            self._checkpoint_steps_cache[filename] = (mtime, steps)
+            self._save_checkpoint_meta(filename, steps)
+            return steps
+
+        self._checkpoint_steps_cache[filename] = (mtime, None)
+        return None
+
+    def _save_checkpoint_meta(self, filename, steps):
+        try:
+            meta = {}
+            if os.path.isfile(self.metadata_file):
+                with open(self.metadata_file, "r") as mf:
+                    meta = json.load(mf)
+            if filename not in meta or meta[filename].get("total_steps") != steps:
+                meta[filename] = {"total_steps": steps}
+                with open(self.metadata_file, "w") as mf:
+                    json.dump(meta, mf, indent=2)
+        except Exception:
+            pass
+
+    def get_all_checkpoint_steps(self):
+        """Return dict of {filename: total_steps} for all available checkpoints."""
+        steps_dict = {}
+        for cp in self.list_checkpoints():
+            steps = self.get_checkpoint_steps(cp)
+            if steps is not None:
+                steps_dict[cp] = steps
+        return steps_dict
 
     def list_checkpoints(self):
         """Return list of saved checkpoint filenames."""

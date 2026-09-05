@@ -76,7 +76,7 @@ turn."`, `"It is not the <Team>'s turn."`, `"The battle is over."`,
 | `ai` | `{"axis": bool, "soviet": bool}` | which sides are computer-controlled (optional extra field) |
 | `ai_types` | `{"axis": "heuristic"\|"rl", "soviet": "heuristic"\|"rl"}` | AI algorithm per side |
 | `ai_models` | `{"axis": str\|null, "soviet": str\|null}` | active checkpoint per side |
-| `training` | object | RL training telemetry and checkpoint list |
+| `training` | object | RL training telemetry, checkpoint list, and per-checkpoint completed steps |
 
 ### Behavior notes
 

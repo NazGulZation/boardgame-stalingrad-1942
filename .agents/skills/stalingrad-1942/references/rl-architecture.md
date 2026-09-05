@@ -82,7 +82,7 @@ distribution, guaranteeing zero invalid action attempts during sampling.
 * **Model Serving**: Caches the active `RLAgent` instance for zero-latency in-game moves.
 
 ### HTTP Endpoints
-* `GET /api/training/status`: Returns current status, step, SPS, losses, and available checkpoints.
+* `GET /api/training/status`: Returns current status, step, SPS, losses, available checkpoints, and checkpoint_steps completed.
 * `POST /api/training/start`: Starts training with `{ total_timesteps, num_envs, learning_rate }`.
 * `POST /api/training/stop`: Gracefully terminates the running process.
 * `POST /api/training/select_model`: Selects active checkpoint for gameplay `{ model }`.

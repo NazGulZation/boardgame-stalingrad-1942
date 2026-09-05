@@ -91,13 +91,22 @@
               <option value="5000">5,000 steps (Quick)</option>
               <option value="20000" selected>20,000 steps (Standard)</option>
               <option value="50000">50,000 steps (Deep)</option>
+              <option value="custom">Custom (manual)...</option>
             </select>
+          </div>
+          <div class="input-row hidden" id="wrap-custom-steps">
+            <label for="train-steps-custom">Manual steps:</label>
+            <input type="number" id="train-steps-custom" min="100" max="2000000" step="1000" value="20000" placeholder="e.g. 15000">
           </div>
           <div class="input-row">
             <label for="train-resume-select">Resume from:</label>
             <select id="train-resume-select">
               <option value="">Start from scratch (New model)</option>
             </select>
+          </div>
+          <div id="train-resume-info" class="resume-info-box scratch">
+            <span class="resume-info-label">Checkpoint history:</span>
+            <span id="train-resume-steps" class="resume-info-val">Fresh start (0 prior steps)</span>
           </div>
           <div class="train-btn-row">
             <button id="btn-train-start" class="btn-primary">Start Training</button>

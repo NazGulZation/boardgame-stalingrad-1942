@@ -25,8 +25,13 @@ const modelSelectSovietEl = document.getElementById("model-select-soviet");
 const wrapModelAxisEl = document.getElementById("wrap-model-axis");
 const wrapModelSovietEl = document.getElementById("wrap-model-soviet");
 const trainResumeSelectEl = document.getElementById("train-resume-select");
+const trainResumeInfoEl = document.getElementById("train-resume-info");
+const trainResumeStepsEl = document.getElementById("train-resume-steps");
+let checkpointSteps = {};
 const trainStatusBadgeEl = document.getElementById("train-status-badge");
 const trainStepsEl = document.getElementById("train-steps");
+const trainStepsCustomEl = document.getElementById("train-steps-custom");
+const wrapCustomStepsEl = document.getElementById("wrap-custom-steps");
 const btnTrainStartEl = document.getElementById("btn-train-start");
 const btnTrainStopEl = document.getElementById("btn-train-stop");
 const trainProgressBarEl = document.getElementById("train-progress-bar");
@@ -116,7 +121,7 @@ function syncAiControls() {
   syncingAi = false;
 }
 
-function populateSelect(selectEl, checkpoints, selectedVal, defaultText, allowEmpty) {
+function populateSelect(selectEl, checkpoints, selectedVal, defaultText, allowEmpty, stepsMap) {
   if (!selectEl) return;
   const prevVal = selectEl.value;
   selectEl.innerHTML = "";
@@ -130,7 +135,12 @@ function populateSelect(selectEl, checkpoints, selectedVal, defaultText, allowEm
     for (const cp of checkpoints) {
       const opt = document.createElement("option");
       opt.value = cp;
-      opt.textContent = cp;
+      const stepCount = stepsMap && stepsMap[cp] !== undefined ? stepsMap[cp] : null;
+      if (stepCount !== null && stepCount !== undefined) {
+        opt.textContent = `${cp} (${stepCount.toLocaleString()} steps)`;
+      } else {
+        opt.textContent = cp;
+      }
       if (cp === selectedVal || (!selectedVal && cp === prevVal)) {
         opt.selected = true;
       }
@@ -138,6 +148,23 @@ function populateSelect(selectEl, checkpoints, selectedVal, defaultText, allowEm
     }
   } else if (!allowEmpty) {
     selectEl.innerHTML = `<option value="">${defaultText}</option>`;
+  }
+}
+
+function updateResumeStepInfo() {
+  if (!trainResumeInfoEl || !trainResumeStepsEl || !trainResumeSelectEl) return;
+  const val = trainResumeSelectEl.value;
+  if (!val) {
+    trainResumeInfoEl.className = "resume-info-box scratch";
+    trainResumeStepsEl.textContent = "Fresh start (0 prior steps)";
+  } else {
+    trainResumeInfoEl.className = "resume-info-box";
+    const steps = checkpointSteps[val];
+    if (steps !== undefined && steps !== null) {
+      trainResumeStepsEl.textContent = `${steps.toLocaleString()} steps done`;
+    } else {
+      trainResumeStepsEl.textContent = "Unknown steps";
+    }
   }
 }
 
@@ -150,6 +177,9 @@ function renderTraining(t) {
   const isRunning = !!t.is_running || statusStr === "training";
   btnTrainStartEl.disabled = isRunning;
   btnTrainStopEl.disabled = !isRunning;
+  if (trainStepsEl) trainStepsEl.disabled = isRunning;
+  if (trainStepsCustomEl) trainStepsCustomEl.disabled = isRunning;
+  if (trainResumeSelectEl) trainResumeSelectEl.disabled = isRunning;
 
   const pct = Math.min(100, Math.max(0, t.progress || 0));
   trainProgressBarEl.style.width = pct + "%";
@@ -161,12 +191,17 @@ function renderTraining(t) {
   trainValueLossEl.textContent = t.value_loss !== undefined && t.value_loss !== null ? t.value_loss : "--";
   trainElapsedEl.textContent = `${Math.round(t.elapsed || 0)}s`;
 
+  if (t.checkpoint_steps) {
+    checkpointSteps = Object.assign({}, checkpointSteps, t.checkpoint_steps);
+  }
+
   const axisCurrent = (state && state.ai_models && state.ai_models.axis) || (t.team_checkpoints && t.team_checkpoints.axis) || t.active_checkpoint;
   const sovietCurrent = (state && state.ai_models && state.ai_models.soviet) || (t.team_checkpoints && t.team_checkpoints.soviet) || t.active_checkpoint;
 
-  populateSelect(modelSelectAxisEl, t.checkpoints, axisCurrent, "No checkpoint available", false);
-  populateSelect(modelSelectSovietEl, t.checkpoints, sovietCurrent, "No checkpoint available", false);
-  populateSelect(trainResumeSelectEl, t.checkpoints, trainResumeSelectEl.value, "Start from scratch (New model)", true);
+  populateSelect(modelSelectAxisEl, t.checkpoints, axisCurrent, "No checkpoint available", false, checkpointSteps);
+  populateSelect(modelSelectSovietEl, t.checkpoints, sovietCurrent, "No checkpoint available", false, checkpointSteps);
+  populateSelect(trainResumeSelectEl, t.checkpoints, trainResumeSelectEl.value, "Start from scratch (New model)", true, checkpointSteps);
+  updateResumeStepInfo();
 }
 
 
@@ -398,15 +433,50 @@ async function onAiToggle() {
 
 aiAxisEl.addEventListener("change", onAiToggle);
 aiSovietEl.addEventListener("change", onAiToggle);
+if (trainResumeSelectEl) {
+  trainResumeSelectEl.addEventListener("change", updateResumeStepInfo);
+}
+if (trainStepsEl && wrapCustomStepsEl) {
+  trainStepsEl.addEventListener("change", () => {
+    if (trainStepsEl.value === "custom") {
+      wrapCustomStepsEl.classList.remove("hidden");
+      if (trainStepsCustomEl) {
+        if (!trainStepsCustomEl.value) trainStepsCustomEl.value = "20000";
+        trainStepsCustomEl.focus();
+        trainStepsCustomEl.select();
+      }
+    } else {
+      wrapCustomStepsEl.classList.add("hidden");
+    }
+  });
+}
 
 btnTrainStartEl.addEventListener("click", async () => {
-  const steps = parseInt(trainStepsEl.value, 10) || 20000;
+  let steps;
+  if (trainStepsEl && trainStepsEl.value === "custom") {
+    steps = parseInt(trainStepsCustomEl ? trainStepsCustomEl.value : "", 10);
+    if (isNaN(steps) || steps <= 0) {
+      showMessage("Please enter a valid positive number of timesteps.");
+      if (trainStepsCustomEl) trainStepsCustomEl.focus();
+      return;
+    }
+    if (steps < 100) {
+      showMessage("Timesteps must be at least 100.");
+      if (trainStepsCustomEl) trainStepsCustomEl.focus();
+      return;
+    }
+  } else {
+    steps = parseInt(trainStepsEl ? trainStepsEl.value : "20000", 10) || 20000;
+  }
+
   const resumeCp = trainResumeSelectEl.value || null;
   btnTrainStartEl.disabled = true;
   if (resumeCp) {
-    showMessage(`Resuming training from ${resumeCp} on GPU...`);
+    const priorSteps = checkpointSteps[resumeCp];
+    const stepText = (priorSteps !== undefined && priorSteps !== null) ? ` (${priorSteps.toLocaleString()} steps already done)` : "";
+    showMessage(`Resuming training from ${resumeCp}${stepText} for ${steps.toLocaleString()} steps on GPU...`);
   } else {
-    showMessage("Launching RL training from scratch on GPU...");
+    showMessage(`Launching RL training (${steps.toLocaleString()} steps) from scratch on GPU...`);
   }
   const res = await api("/api/training/start", {
     total_timesteps: steps,
