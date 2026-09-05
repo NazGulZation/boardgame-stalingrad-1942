@@ -154,9 +154,9 @@ class TestCombat(GameTestBase):
             "u8", [u["id"] for u in self.game.to_dict()["units"]])
 
     def test_survivor_keeps_damage_and_attacker_is_done(self):
-        self.game.rng = FakeRng([1])      # 3+1-2=2 damage -> 1 HP left
+        self.game.rng = FakeRng([1])      # 3+1-2=2 damage -> 3 HP left
         self.game.attack("u1", "u8")
-        self.assertEqual(self.game.units["u8"].hp, 1)
+        self.assertEqual(self.game.units["u8"].hp, 3)
         self.assertTrue(self.game.units["u1"].attacked)
         self.assertTrue(self.game.units["u1"].moved)
 
@@ -178,7 +178,7 @@ class TestCombat(GameTestBase):
     def test_sniper_range_three_and_ignores_ruins(self):
         self.game.units["u4"].x, self.game.units["u4"].y = 2, 1
         # u8 sits in ruins at (2, 4); Chebyshev distance 3, cover ignored.
-        self.game.rng = FakeRng([1])      # 2+1-0=3 damage -> kills
+        self.game.rng = FakeRng([6])      # 2+6-0=8 damage -> kills
         self.game.attack("u4", "u8")
         self.assertFalse(self.game.units["u8"].alive)
 
@@ -304,7 +304,7 @@ class TestGoldenScenario(unittest.TestCase):
         self.assertTrue(g.units["u7"].moved)
         self.assertFalse(g.units["u7"].attacked)
         self.assertEqual(g.objective_control(),
-                         {name: None for name in board.OBJECTIVES.values()})
+                         {name: "soviet" for name in board.OBJECTIVES.values()})
         self.assertEqual(len(g.log), 6)
         self.assertIn("destroyed Rifle Squad", g.log[1])
         self.assertIn("destroyed Rifle Squad", g.log[3])

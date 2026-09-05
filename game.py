@@ -43,6 +43,11 @@ class Game:
         self.turn = "axis"
         self.round = 1
         self.winner = None
+        # The Soviets already hold every objective; the Axis must capture a
+        # majority. Control is sticky - it stays with the last side to have a
+        # unit on the tile until the enemy captures it in turn.
+        self.objective_control_state = {
+            name: "soviet" for name in board.OBJECTIVES.values()}
         self.log = ["Round 1 - the Axis 6th Army storms Stalingrad!"]
 
     def _spawn(self, type_key, team, x, y):
@@ -91,11 +96,18 @@ class Game:
                 (unit.x, unit.y), (other.x, other.y)) <= weapon_range)
 
     def objective_control(self):
-        """Map objective name -> controlling team (or None if empty)."""
-        control = {}
+        """Map objective name -> controlling team.
+
+        A unit standing on an objective shows its team (intuitive, and keeps
+        the capture visible). An empty objective falls back to the sticky
+        capture state: the Soviets begin holding them all, and control flips
+        to whichever side last moved a unit onto the tile, persisting even
+        after that unit leaves."""
+        control = dict(self.objective_control_state)
         for (x, y), name in board.OBJECTIVES.items():
             unit = self.unit_at(x, y)
-            control[name] = unit.team if unit else None
+            if unit:
+                control[name] = unit.team
         return control
 
     # ------------------------------------------------------------ actions
@@ -122,6 +134,8 @@ class Game:
             raise ValueError("That tile is out of movement range.")
         unit.x, unit.y = x, y
         unit.moved = True
+        if (x, y) in board.OBJECTIVES:
+            self.objective_control_state[board.OBJECTIVES[(x, y)]] = unit.team
         self._log("%s moved to (%d, %d)." % (unit.name, x, y))
 
     def attack(self, attacker_id, target_id):

@@ -37,8 +37,14 @@ y=9:      .   .   .   .   .   .   .   .   .   .   ~   .
 
 ## Objectives (5)
 
-A unit standing on an objective tile controls it. Controlling more at the
-end of round 12 wins (a tie goes to the Soviets).
+The Soviets begin the battle already holding every objective. Control is
+**sticky**: it flips to a side the moment one of its units moves onto the
+tile, and stays with that side even after the unit leaves, until the enemy
+captures it in turn. A unit standing on an objective shows its own team;
+an empty objective falls back to whoever captured it last.
+
+Capturing the majority (3+) at the end of round 12 wins the battle for the
+Axis; holding them defends Stalingrad for the Soviets.
 
 | Name | Tile | Terrain / cover |
 |---|---|---|
@@ -65,9 +71,9 @@ bonus on ruined objectives); Rifle Squads do not.
 
 | Type | Name | Icon | Move | Attack | HP | Range | Ignores ruins |
 |---|---|---|---|---|---|---|---|
-| rifle | Rifle Squad | R | 2 | 3 | 3 | 1 | no |
-| sniper | Sniper Team | S | 1 | 2 | 2 | 3 | yes |
-| tank | Tank | T | 3 | 4 | 4 | 1 | yes |
+| rifle | Rifle Squad | R | 2 | 3 | 5 | 1 | no |
+| sniper | Sniper Team | S | 1 | 2 | 4 | 3 | yes |
+| tank | Tank | T | 3 | 4 | 6 | 1 | yes |
 
 ### Start deployments (IDs u1..u12)
 
@@ -112,8 +118,8 @@ damage = max(1, attacker attack + d6(1..6) - defender cover)
 1. **Elimination** (checked when a side's turn ends): if all Soviets die,
    Axis wins; if all Axis die, Soviets win; if both die, Soviets hold.
 2. **Objective count** (after round 12 Soviet phase ends): count objectives
-   with a standing unit. Axis wins if it holds strictly more; otherwise the
-   Soviets win (more, or tie — "the objectives are split; Stalingrad holds").
+   by sticky control. The Axis wins only if it holds a strict majority (3+ of
+   5); otherwise the Soviets win — they held Stalingrad.
 
 Since rounds 1..12 and 13..? — the game sets `winner` and rejects further
 actions once any victory condition has triggered.

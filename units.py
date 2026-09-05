@@ -3,15 +3,15 @@
 UNIT_STATS = {
     "rifle": {
         "name": "Rifle Squad", "move": 2, "attack": 3,
-        "hp": 3, "range": 1, "ignores_ruins": False,
+        "hp": 5, "range": 1, "ignores_ruins": False,
     },
     "sniper": {
         "name": "Sniper Team", "move": 1, "attack": 2,
-        "hp": 2, "range": 3, "ignores_ruins": True,
+        "hp": 4, "range": 3, "ignores_ruins": True,
     },
     "tank": {
         "name": "Tank", "move": 3, "attack": 4,
-        "hp": 4, "range": 1, "ignores_ruins": True,
+        "hp": 6, "range": 1, "ignores_ruins": True,
     },
 }
 

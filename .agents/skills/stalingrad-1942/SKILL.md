@@ -1,6 +1,6 @@
 ---
 name: stalingrad-1942
-description: Develop, extend, refactor, and test this Stalingrad 1942 hot-seat board wargame (Python + Flask web app). Covers the pure-Python turn-based engine (board/terrain/BFS movement, unit stats, d6 combat, turns/rounds, victory), the Flask JSON API contract consumed by the vanilla-JS frontend, and the stdlib unittest + regression/golden-scenario suites. Use when editing board.py, units.py, game.py, app.py, templates/, static/, or any test_*.py in this workspace.
+description: Develop, extend, refactor, and test this Stalingrad 1942 hot-seat board wargame (Python + Flask web app). Covers the pure-Python turn-based engine (board/terrain/BFS movement, unit stats, d6 combat, turns/rounds, victory), the greedy heuristic AI (`ai.py`), the Flask JSON API contract consumed by the vanilla-JS frontend, and the stdlib unittest + regression/golden-scenario suites. Use when editing board.py, units.py, game.py, ai.py, app.py, templates/, static/, or any test_*.py in this workspace.
 ---
 
 # Stalingrad 1942 — Battleground Skill
@@ -40,7 +40,7 @@ conventions, and validation rules so you can extend or refactor safely.
   share one screen; a second browser tab shows the same state. There is a
   single global `GAME` object — restart the process to start fresh.
 - Run tests: `C:\Anaconda\python.exe -m unittest discover -s . -p "test_*.py"`
-  (`run_tests.bat`). All 79 tests must pass.
+  (`run_tests.bat`). All 96 tests must pass.
 - Size budget: `C:\Anaconda\python.exe
   .agents\skills\stalingrad-1942\scripts\check_file_sizes.py`
 - PowerShell gotchas: `&&` is unsupported (use `;`); python stderr is
@@ -52,15 +52,17 @@ conventions, and validation rules so you can extend or refactor safely.
 |---|---|
 | `board.py` | Board constants (12x10), terrain grid, 5 objectives, BFS movement range, defense cover |
 | `units.py` | `UNIT_STATS`, `TEAM_NAMES`, `Unit` class, `resolve_attack` damage math |
-| `game.py` | `Game`: deployments, turn/round flow, move/attack/end_turn validation, victory, serialization |
-| `app.py` | Thin Flask controller: routes, global `GAME`, `ValueError` -> HTTP 400 |
-| `templates/index.html` | Board page shell (side panels, overlay, buttons) |
+| `game.py` | `Game`: deployments, turn/round flow, move/attack/end_turn validation, sticky objective control, victory, serialization |
+| `ai.py` | Greedy heuristic AI: `play_turn(game, team)` plays one full side through the engine (pure Python, no Flask) |
+| `app.py` | Thin Flask controller: routes, global `GAME`, `ValueError` -> HTTP 400, AI endpoints |
+| `templates/index.html` | Board page shell (side panels, overlay, buttons, AI controls) |
 | `static/css/style.css` | Layout + winter Stalingrad theme |
-| `static/js/game.js` | Rendering, click handling, `/api/*` calls, 2.5s state polling |
+| `static/js/game.js` | Rendering, click handling, `/api/*` calls, 2.5s state polling, AI auto-play |
 | `test_board.py` | Board/terrain/movement tests (14) |
 | `test_units.py` | Unit stats + combat tests (12) |
 | `test_game.py` | Rules/turn/victory/reinforcement + golden scenario (31) |
-| `test_app.py` | Flask API integration + regression cycle (22) |
+| `test_app.py` | Flask API integration + regression cycle + AI endpoints (26) |
+| `test_ai.py` | AI combat/positioning/turn-flow + full seeded battles (11) |
 
 ## Common tasks
 
@@ -83,11 +85,33 @@ conventions, and validation rules so you can extend or refactor safely.
 1. Change `resolve_attack` (`units.py`) or `defense_bonus` (`board.py`).
 2. Update the pinned-damage tests in `test_units.py` and the golden scenario
    in `test_game.py` only if the arithmetic intentionally changes.
+3. **Check balance** after any lethality change: run an AI-vs-AI simulation
+   (see "Run a balance simulation" below). The game should land near 40-60%
+   win split with a healthy fraction of games reaching the round-12 objective
+   vote. A 100% one-sided split or 0% reaching objectives means combat is too
+   deterministic (min-damage >= HP) or the first-mover dominates.
 
 ### Add an API endpoint
 1. Add a route in `app.py` (use `_run_action` for engine actions).
 2. Add an integration test in `test_app.py`.
 3. Document request/response in `references/api-contract.md`.
+
+### Tune the AI
+1. Adjust scoring knobs in `ai.py` (`OBJECTIVE_HOLD`, `THREAT_PENALTY`,
+   `ENEMY_APPROACH_WEIGHT`, `FORWARD_WEIGHT`, etc.).
+2. Add/adjust tests in `test_ai.py`; run a balance simulation to confirm the
+   win split stays competitive.
+3. The AI must stay pure Python (no Flask) and deterministic (no internal
+   RNG — only the engine dice rolls consume randomness).
+
+### Run a balance simulation
+1. Write a temporary script that loops `Game(rng=random.Random(seed))` ->
+   `play_turn(game, game.turn)` until `game.winner`, collecting win rates,
+   win type (elimination vs objective), rounds, and objectives held.
+2. Run >= 1000 games. Target: ~40-60% win split, 30-60% reaching the
+   round-12 objective vote, and variable attack counts (not a fixed number —
+   a fixed count means combat is fully deterministic and the dice don't matter).
+3. Delete the temporary script when done — it is a diagnostic, not a project file.
 
 ### Refactor a file near the 700-line budget
 1. Extract cohesive chunks into new sibling modules under the same package.

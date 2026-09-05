@@ -181,6 +181,17 @@ main {
 .ctrl-soviet { color: #a02a22; font-weight: 600; }
 .ctrl-none { color: #8a97a5; font-style: italic; }
 
+.ai-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+
+.ai-toggle input { accent-color: #2b3948; }
+
 .buttons { display: flex; gap: 10px; }
 
 button {

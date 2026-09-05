@@ -7,6 +7,7 @@ let selectedId = null;
 let moves = [];
 let targets = [];
 let busy = false;
+let aiRunning = false;
 
 const boardEl = document.getElementById("board");
 const bannerEl = document.getElementById("banner");
@@ -17,6 +18,8 @@ const messageEl = document.getElementById("message");
 const overlayEl = document.getElementById("overlay");
 const overlayTitleEl = document.getElementById("overlay-title");
 const overlayTextEl = document.getElementById("overlay-text");
+const aiAxisEl = document.getElementById("ai-axis");
+const aiSovietEl = document.getElementById("ai-soviet");
 
 const UNIT_ICONS = { rifle: "R", sniper: "S", tank: "T" };
 
@@ -56,7 +59,7 @@ function showMessage(text) {
 }
 
 async function refresh() {
-  if (busy) return;
+  if (busy || aiRunning) return;
   const data = await api("/api/state");
   if (data) applyState(data);
 }
@@ -65,6 +68,26 @@ function applyState(data) {
   const changed = JSON.stringify(data) !== JSON.stringify(state);
   state = data;
   if (changed) render();
+  syncAiControls();
+  maybeRunAiTurn();
+}
+
+let syncingAi = false;
+function syncAiControls() {
+  if (!state || !state.ai || syncingAi) return;
+  syncingAi = true;
+  aiAxisEl.checked = !!state.ai.axis;
+  aiSovietEl.checked = !!state.ai.soviet;
+  syncingAi = false;
+}
+
+async function maybeRunAiTurn() {
+  if (!state || state.winner || aiRunning) return;
+  if (!state.ai || !state.ai[state.turn]) return;
+  aiRunning = true;
+  const data = await api("/api/ai_turn", {});
+  aiRunning = false;
+  if (data) { clearSelection(); applyState(data); }
 }
 
 function unitAt(x, y) {
@@ -251,6 +274,20 @@ document.getElementById("btn-reset").addEventListener("click", () => {
 });
 
 document.getElementById("btn-again").addEventListener("click", resetGame);
+
+async function onAiToggle() {
+  if (syncingAi || !state) return;
+  busy = true;
+  const data = await api("/api/set_ai", {
+    axis: aiAxisEl.checked,
+    soviet: aiSovietEl.checked,
+  });
+  busy = false;
+  if (data) { clearSelection(); applyState(data); }
+}
+
+aiAxisEl.addEventListener("change", onAiToggle);
+aiSovietEl.addEventListener("change", onAiToggle);
 
 setInterval(refresh, 2500);
 refresh();

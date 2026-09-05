@@ -18,6 +18,8 @@ tests). Add fields, don't rename.
 | POST | `/api/move` | `{"unit_id": "u1", "x": 1, "y": 3}` | full state |
 | POST | `/api/attack` | `{"attacker_id": "u1", "target_id": "u8"}` | full state |
 | POST | `/api/end_turn` | `{}` | full state |
+| POST | `/api/set_ai` | `{"axis": true, "soviet": false}` | full state (new game) |
+| POST | `/api/ai_turn` | `{}` | full state |
 | POST | `/api/reset` | `{}` | full state (new game) |
 
 ### Errors
@@ -72,6 +74,7 @@ turn."`, `"It is not the <Team>'s turn."`, `"The battle is over."`,
 | `units[]` | object[] | **alive units only**; `id`, `type` (`"rifle"\|"sniper"\|"tank"`), `name`, `team`, `x`, `y`, `hp`, `max_hp`, `move`, `attack`, `range`, `moved`, `attacked` |
 | `objectives[]` | object[] | `name`, `x`, `y`, `controlled_by` (`null` or team) |
 | `log[]` | string[] | last 25 battle-log entries |
+| `ai` | `{"axis": bool, "soviet": bool}` | which sides are computer-controlled (optional extra field) |
 
 ### Behavior notes
 
@@ -84,5 +87,10 @@ turn."`, `"It is not the <Team>'s turn."`, `"The battle is over."`,
 - `attack` rejects friendly fire, out-of-range, already-attacked, and
   targeting destroyed units.
 - `end_turn` rejects calls after the battle is over; `reset` always works.
+- `set_ai` picks which side(s) are computer-controlled; the frontend reflects
+  this in the "Computer opponents" panel. `ai_turn` plays one full turn for
+  the side whose turn it currently is — but **only** if that side is enabled
+  as AI (otherwise it returns **400** with an error). The AI never rolls its
+  own dice, so `Game.rng` stays the single source of randomness.
 - All action endpoints (except `legal_moves`) return the **full state**,
   exactly like `GET /api/state`.

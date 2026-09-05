@@ -17,6 +17,7 @@ class FakeRng:
 class AppTestBase(unittest.TestCase):
     def setUp(self):
         app_module.GAME = Game(rng=FakeRng([]))
+        app_module.AI_SIDES = {"axis": False, "soviet": False}
         app_module.app.config["TESTING"] = True
         self.client = app_module.app.test_client()
 
@@ -149,6 +150,48 @@ class TestTurnAndReset(AppTestBase):
         self.assertEqual((by_id["u7"]["x"], by_id["u7"]["y"]), (11, 1))
         self.assertFalse(by_id["u1"]["moved"])
         self.assertFalse(by_id["u1"]["attacked"])
+
+
+class TestAI(AppTestBase):
+    def test_state_includes_ai_config(self):
+        data = self.client.get("/api/state").get_json()
+        self.assertIn("ai", data)
+        self.assertEqual(data["ai"], {"axis": False, "soviet": False})
+
+    def test_set_ai_toggles_config(self):
+        res = self.client.post("/api/set_ai", json={"axis": True})
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["ai"]["axis"])
+        self.assertFalse(data["ai"]["soviet"])
+        # Toggling back off leaves a clean state.
+        res = self.client.post("/api/set_ai", json={"axis": False})
+        self.assertFalse(res.get_json()["ai"]["axis"])
+
+    def test_ai_turn_rejected_when_not_enabled(self):
+        res = self.client.post("/api/ai_turn", json={})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("error", res.get_json())
+
+    def test_ai_turn_runs_full_turn_when_enabled(self):
+        app_module.GAME.rng = FakeRng([4] * 12)
+        # Snapshot the pre-turn positions of every Axis unit.
+        before = {u.id: (u.x, u.y)
+                  for u in app_module.GAME.units.values()
+                  if u.team == "axis"}
+        res = self.client.post("/api/set_ai", json={"axis": True})
+        self.assertEqual(res.status_code, 200)
+        res = self.client.post("/api/ai_turn", json={})
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        # A full Axis turn was played and the turn passed to the Soviets.
+        self.assertEqual(data["turn"], "soviet")
+        self.assertEqual(data["round"], 1)
+        # At least one Axis unit changed position during the AI turn.
+        by_id = {u["id"]: u for u in data["units"]}
+        self.assertTrue(
+            any((by_id[uid]["x"], by_id[uid]["y"]) != pos
+                for uid, pos in before.items()))
 
 
 if __name__ == "__main__":
