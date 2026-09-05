@@ -20,7 +20,7 @@ DEPLOYMENTS = {
     ],
 }
 
-REINFORCEMENT_ROUND = 3
+REINFORCEMENT_ROUND = 2          # Reinforcement arrives earlier (was round 3)
 REINFORCEMENT_SPOTS = [(9, 4), (9, 5), (9, 3)]
 
 LOG_LIMIT = 100
@@ -217,6 +217,11 @@ class Game:
             self._win("soviet", "the objectives are split; Stalingrad holds.")
 
     def _soviet_reinforcement(self):
+        """Spawn a Soviet reinforcement unit on an empty ferry spot.
+
+        Reinforcement arrives on round 2 (earlier than original round 3)
+        to give Soviets board presence to contest objectives.
+        """
         for x, y in REINFORCEMENT_SPOTS:
             if self.unit_at(x, y) is None:
                 unit = self._spawn("rifle", "soviet", x, y)

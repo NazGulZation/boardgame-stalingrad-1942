@@ -234,25 +234,38 @@ class TestVictory(GameTestBase):
             self.game.end_turn()
 
 class TestReinforcement(GameTestBase):
-    def test_reinforcement_lands_on_round_3_soviet_turn(self):
-        self.game.round = 2
+    def test_reinforcement_lands_on_round_2_soviet_turn(self):
+        """Reinforcement (rifle) arrives on round 2 soviet turn."""
+        self.game.round = 1
         self.game.turn = "soviet"
-        self.game.end_turn()              # -> axis, round 3, no spawn yet
+        self.game.end_turn()              # -> axis, round 2, no spawn yet
         self.assertNotIn("u13", self.game.units)
-        self.game.end_turn()              # -> soviets, round 3: spawn
+        self.game.end_turn()              # -> soviets, round 2: spawn rifle
         unit = self.game.units["u13"]
         self.assertEqual((unit.x, unit.y), (9, 4))
         self.assertEqual(unit.team, "soviet")
         self.assertEqual(unit.type, "rifle")
 
     def test_reinforcement_skips_blocked_spot(self):
-        self.game.round = 2
+        """Reinforcement skips occupied ferry spots."""
+        self.game.round = 1
         self.game.turn = "soviet"
         self.game.end_turn()
         self.game.units["u1"].x, self.game.units["u1"].y = 9, 4
         self.game.end_turn()
         self.assertEqual((self.game.units["u13"].x,
                           self.game.units["u13"].y), (9, 5))
+
+    def test_no_reinforcement_after_round_2(self):
+        """No reinforcement arrives after round 2."""
+        # Advance to round 3
+        self.game.round = 2
+        self.game.turn = "soviet"
+        self.game.end_turn()              # -> axis, round 3
+        units_before = set(self.game.units.keys())
+        self.game.end_turn()              # -> soviets, round 3: no spawn
+        units_after = set(self.game.units.keys())
+        self.assertEqual(units_before, units_after)
 
 
 class TestSerialization(GameTestBase):
