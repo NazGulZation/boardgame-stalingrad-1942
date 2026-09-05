@@ -33,12 +33,73 @@
       </section>
       <section>
         <h2>Computer opponents</h2>
-        <label class="ai-toggle"><input type="checkbox" id="ai-axis">
-          Axis 6th Army plays itself</label>
-        <label class="ai-toggle"><input type="checkbox" id="ai-soviet">
-          Soviets 62nd Army plays itself</label>
-        <p class="hint">When a side plays itself, its turn runs automatically
-          a moment after it begins.</p>
+        <div class="ai-group">
+          <label class="ai-toggle"><input type="checkbox" id="ai-axis"> Axis 6th Army plays itself</label>
+          <div class="ai-type-select">
+            <label><input type="radio" name="ai-type-axis" value="heuristic" checked> Heuristic</label>
+            <label><input type="radio" name="ai-type-axis" value="rl"> RL Model</label>
+          </div>
+        </div>
+        <div class="ai-group">
+          <label class="ai-toggle"><input type="checkbox" id="ai-soviet"> Soviets 62nd Army plays itself</label>
+          <div class="ai-type-select">
+            <label><input type="radio" name="ai-type-soviet" value="heuristic" checked> Heuristic</label>
+            <label><input type="radio" name="ai-type-soviet" value="rl"> RL Model</label>
+          </div>
+        </div>
+        <div class="model-select-wrap">
+          <label for="model-select">Active RL Model:</label>
+          <select id="model-select">
+            <option value="">No checkpoint available</option>
+          </select>
+        </div>
+      </section>
+      <section id="training-section">
+        <div class="section-header">
+          <h2>RL Training Hub</h2>
+          <span id="train-status-badge" class="badge idle">Idle</span>
+        </div>
+        <div class="train-controls">
+          <div class="input-row">
+            <label for="train-steps">Timesteps:</label>
+            <select id="train-steps">
+              <option value="5000">5,000 steps (Quick)</option>
+              <option value="20000" selected>20,000 steps (Standard)</option>
+              <option value="50000">50,000 steps (Deep)</option>
+            </select>
+          </div>
+          <div class="train-btn-row">
+            <button id="btn-train-start" class="btn-primary">Start Training</button>
+            <button id="btn-train-stop" class="btn-secondary" disabled>Stop</button>
+          </div>
+        </div>
+        <div id="train-stats-panel">
+          <div class="progress-bar-wrap">
+            <div id="train-progress-bar" class="progress-bar" style="width: 0%"></div>
+          </div>
+          <div class="progress-label">
+            <span id="train-progress-text">0% (0 / 0)</span>
+            <span id="train-sps-text">0 SPS</span>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <span class="stat-label">Win vs AI</span>
+              <span id="train-win-rate" class="stat-val">--%</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Policy Loss</span>
+              <span id="train-policy-loss" class="stat-val">--</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Value Loss</span>
+              <span id="train-value-loss" class="stat-val">--</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Elapsed</span>
+              <span id="train-elapsed" class="stat-val">0s</span>
+            </div>
+          </div>
+        </div>
       </section>
       <section class="buttons">
         <button id="btn-end-turn">End turn</button>

@@ -194,5 +194,39 @@ class TestAI(AppTestBase):
                 for uid, pos in before.items()))
 
 
+class TestTrainingEndpoints(AppTestBase):
+    def test_training_status_get(self):
+        res = self.client.get("/api/training/status")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertIn("status", data)
+        self.assertIn("checkpoints", data)
+        self.assertIn("progress", data)
+
+    def test_set_ai_type(self):
+        res = self.client.post("/api/set_ai_type", json={"axis": "rl", "soviet": "heuristic"})
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["ai_types"]["axis"], "rl")
+        self.assertEqual(data["ai_types"]["soviet"], "heuristic")
+
+    def test_select_nonexistent_model_returns_400(self):
+        res = self.client.post("/api/training/select_model", json={"model": "non_existent_12345.pt"})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("error", res.get_json())
+
+    def test_ai_turn_with_rl_mode_runs_successfully(self):
+        app_module.GAME.rng = FakeRng([4] * 12)
+        res = self.client.post("/api/set_ai", json={"axis": True})
+        self.assertEqual(res.status_code, 200)
+        res = self.client.post("/api/set_ai_type", json={"axis": "rl"})
+        self.assertEqual(res.status_code, 200)
+        res = self.client.post("/api/ai_turn", json={})
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["turn"], "soviet")
+
+
 if __name__ == "__main__":
     unittest.main()
+

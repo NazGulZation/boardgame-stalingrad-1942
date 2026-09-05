@@ -1,1 +1,7 @@
-/__pycache__
+/__pycache__/
+*.py[cod]
+checkpoints/*.pt
+checkpoints/*.tmp
+checkpoints/train_status.json
+runs/
+.pytest_cache/

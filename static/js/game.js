@@ -20,6 +20,18 @@ const overlayTitleEl = document.getElementById("overlay-title");
 const overlayTextEl = document.getElementById("overlay-text");
 const aiAxisEl = document.getElementById("ai-axis");
 const aiSovietEl = document.getElementById("ai-soviet");
+const modelSelectEl = document.getElementById("model-select");
+const trainStatusBadgeEl = document.getElementById("train-status-badge");
+const trainStepsEl = document.getElementById("train-steps");
+const btnTrainStartEl = document.getElementById("btn-train-start");
+const btnTrainStopEl = document.getElementById("btn-train-stop");
+const trainProgressBarEl = document.getElementById("train-progress-bar");
+const trainProgressTextEl = document.getElementById("train-progress-text");
+const trainSpsTextEl = document.getElementById("train-sps-text");
+const trainWinRateEl = document.getElementById("train-win-rate");
+const trainPolicyLossEl = document.getElementById("train-policy-loss");
+const trainValueLossEl = document.getElementById("train-value-loss");
+const trainElapsedEl = document.getElementById("train-elapsed");
 
 const UNIT_ICONS = { rifle: "R", sniper: "S", tank: "T" };
 
@@ -74,12 +86,61 @@ function applyState(data) {
 
 let syncingAi = false;
 function syncAiControls() {
-  if (!state || !state.ai || syncingAi) return;
+  if (!state || syncingAi) return;
   syncingAi = true;
-  aiAxisEl.checked = !!state.ai.axis;
-  aiSovietEl.checked = !!state.ai.soviet;
+  if (state.ai) {
+    aiAxisEl.checked = !!state.ai.axis;
+    aiSovietEl.checked = !!state.ai.soviet;
+  }
+  if (state.ai_types) {
+    const axisRadio = document.querySelector(`input[name="ai-type-axis"][value="${state.ai_types.axis || 'heuristic'}"]`);
+    if (axisRadio) axisRadio.checked = true;
+    const sovietRadio = document.querySelector(`input[name="ai-type-soviet"][value="${state.ai_types.soviet || 'heuristic'}"]`);
+    if (sovietRadio) sovietRadio.checked = true;
+  }
+  if (state.training) {
+    renderTraining(state.training);
+  }
   syncingAi = false;
 }
+
+function renderTraining(t) {
+  if (!t) return;
+  const statusStr = t.status || "idle";
+  trainStatusBadgeEl.textContent = statusStr.toUpperCase();
+  trainStatusBadgeEl.className = "badge " + statusStr.toLowerCase();
+
+  const isRunning = !!t.is_running || statusStr === "training";
+  btnTrainStartEl.disabled = isRunning;
+  btnTrainStopEl.disabled = !isRunning;
+
+  const pct = Math.min(100, Math.max(0, t.progress || 0));
+  trainProgressBarEl.style.width = pct + "%";
+  trainProgressTextEl.textContent = `${pct}% (${(t.step || 0).toLocaleString()} / ${(t.total_steps || 0).toLocaleString()})`;
+  trainSpsTextEl.textContent = `${t.sps || 0} SPS`;
+
+  trainWinRateEl.textContent = t.win_rate !== undefined && t.win_rate !== null ? `${t.win_rate}%` : "--%";
+  trainPolicyLossEl.textContent = t.policy_loss !== undefined && t.policy_loss !== null ? t.policy_loss : "--";
+  trainValueLossEl.textContent = t.value_loss !== undefined && t.value_loss !== null ? t.value_loss : "--";
+  trainElapsedEl.textContent = `${Math.round(t.elapsed || 0)}s`;
+
+  if (t.checkpoints && t.checkpoints.length > 0) {
+    const currentVal = modelSelectEl.value || t.active_checkpoint;
+    modelSelectEl.innerHTML = "";
+    for (const cp of t.checkpoints) {
+      const opt = document.createElement("option");
+      opt.value = cp;
+      opt.textContent = cp;
+      if (cp === t.active_checkpoint || (!t.active_checkpoint && cp === currentVal)) {
+        opt.selected = true;
+      }
+      modelSelectEl.appendChild(opt);
+    }
+  } else {
+    modelSelectEl.innerHTML = '<option value="">No checkpoint available</option>';
+  }
+}
+
 
 async function maybeRunAiTurn() {
   if (!state || state.winner || aiRunning) return;
@@ -289,5 +350,37 @@ async function onAiToggle() {
 aiAxisEl.addEventListener("change", onAiToggle);
 aiSovietEl.addEventListener("change", onAiToggle);
 
-setInterval(refresh, 2500);
+btnTrainStartEl.addEventListener("click", async () => {
+  const steps = parseInt(trainStepsEl.value, 10) || 20000;
+  btnTrainStartEl.disabled = true;
+  showMessage("Launching RL training on GPU...");
+  const res = await api("/api/training/start", { total_timesteps: steps, num_envs: 4 });
+  if (res && res.training) renderTraining(res.training);
+});
+
+btnTrainStopEl.addEventListener("click", async () => {
+  btnTrainStopEl.disabled = true;
+  showMessage("Stopping RL training run...");
+  const res = await api("/api/training/stop", {});
+  if (res && res.training) renderTraining(res.training);
+});
+
+modelSelectEl.addEventListener("change", async () => {
+  const selected = modelSelectEl.value;
+  if (!selected) return;
+  const res = await api("/api/training/select_model", { model: selected });
+  if (res && res.training) renderTraining(res.training);
+});
+
+document.querySelectorAll('input[name="ai-type-axis"], input[name="ai-type-soviet"]').forEach((radio) => {
+  radio.addEventListener("change", async () => {
+    const axisEl = document.querySelector('input[name="ai-type-axis"]:checked');
+    const sovietEl = document.querySelector('input[name="ai-type-soviet"]:checked');
+    if (!axisEl || !sovietEl) return;
+    await api("/api/set_ai_type", { axis: axisEl.value, soviet: sovietEl.value });
+  });
+});
+
+setInterval(refresh, 2000);
 refresh();
+
