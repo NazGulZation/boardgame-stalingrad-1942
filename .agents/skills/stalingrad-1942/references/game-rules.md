@@ -78,7 +78,7 @@ bonus on ruined objectives); Rifle Squads do not.
 | u3 | Rifle | (0, 7) | u9 | Rifle | (11, 7) |
 | u4 | Sniper | (1, 4) | u10 | Sniper | (11, 4) |
 | u5 | Sniper | (1, 6) | u11 | Sniper | (11, 6) |
-| u6 | Tank | (1, 5) | u12 | Tank | (11, 5) |
+| u6 | Tank | (1, 5) | u12 | Tank | (11, 8) |
 
 ### Reinforcement
 

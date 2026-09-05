@@ -16,7 +16,7 @@ DEPLOYMENTS = {
     ],
     "soviet": [
         ("rifle", 11, 3), ("rifle", 11, 5), ("rifle", 11, 7),
-        ("sniper", 11, 4), ("sniper", 11, 6), ("tank", 11, 5),
+        ("sniper", 11, 4), ("sniper", 11, 6), ("tank", 11, 8),
     ],
 }
 

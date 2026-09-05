@@ -37,6 +37,18 @@ class TestSetup(GameTestBase):
             else:
                 self.assertEqual(unit.x, 11)
 
+    def test_deployment_tiles_are_unique(self):
+        # Guards against stacked spawns (e.g. the tank sharing a tile with
+        # the middle rifle squad used to break the Soviet column at (11, 5)).
+        tiles = [(u.x, u.y) for u in self.game.units.values()]
+        self.assertEqual(len(tiles), len(set(tiles)))
+
+    def test_soviet_tank_deployed_on_its_own_tile(self):
+        self.assertEqual((self.game.units["u8"].x, self.game.units["u8"].y),
+                         (11, 5))
+        self.assertEqual((self.game.units["u12"].x, self.game.units["u12"].y),
+                         (11, 8))
+
     def test_initial_state(self):
         self.assertEqual(self.game.turn, "axis")
         self.assertEqual(self.game.round, 1)
