@@ -57,7 +57,7 @@ class TrainingManager:
         next_v = max(versions, default=0) + 1
         return f"{prefix}{next_v}.pt"
 
-    def start_training(self, total_timesteps=10000, num_envs=4, lr=2.5e-4, resume_checkpoint=None, train_side="axis", opponent="heuristic", opponent_checkpoint=None, model_name=None):
+    def start_training(self, total_timesteps=10000, num_envs=4, lr=2.5e-4, resume_checkpoint=None, train_side="axis", opponent="heuristic", opponent_checkpoint=None, model_name=None, opponents=None):
         """Start PPO training in a background subprocess."""
         if self.is_running():
             return False, "Training is already in progress."
@@ -93,7 +93,17 @@ class TrainingManager:
             "--model-name", target_model,
         ]
 
-        if opponent == "checkpoint" and opponent_checkpoint:
+        # Parse opponents list if provided
+        opp_list = []
+        if isinstance(opponents, str) and opponents.strip():
+            opp_list = [x.strip() for x in opponents.split(",") if x.strip()]
+        elif isinstance(opponents, (list, tuple)):
+            opp_list = [str(x).strip() for x in opponents if str(x).strip()]
+
+        if opp_list:
+            cmd.extend(["--opponents", ",".join(opp_list)])
+            opponent = "pool"
+        elif opponent == "checkpoint" and opponent_checkpoint:
             opp_path = os.path.join(self.checkpoints_dir, opponent_checkpoint)
             if not os.path.isfile(opp_path) and os.path.isfile(opponent_checkpoint):
                 opp_path = opponent_checkpoint
@@ -117,6 +127,8 @@ class TrainingManager:
             "policy_loss": 0.0,
             "value_loss": 0.0,
             "win_rate": 0.0,
+            "pool_eval": {},
+            "opponents": opp_list if opp_list else [opponent],
             "elapsed": 0.0,
             "train_side": train_side,
             "opponent": opponent,
@@ -187,6 +199,8 @@ class TrainingManager:
             "policy_loss": 0.0,
             "value_loss": 0.0,
             "win_rate": 0.0,
+            "pool_eval": {},
+            "opponents": [],
             "reward": 0.0,
             "reward_history": [],
             "num_envs": 4,

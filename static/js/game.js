@@ -24,32 +24,6 @@ const modelSelectAxisEl = document.getElementById("model-select-axis");
 const modelSelectSovietEl = document.getElementById("model-select-soviet");
 const wrapModelAxisEl = document.getElementById("wrap-model-axis");
 const wrapModelSovietEl = document.getElementById("wrap-model-soviet");
-const trainSideSelectEl = document.getElementById("train-side-select");
-const trainOpponentSelectEl = document.getElementById("train-opponent-select");
-const wrapOpponentCheckpointEl = document.getElementById("wrap-opponent-checkpoint");
-const trainOppModelSelectEl = document.getElementById("train-opp-model-select");
-const trainResumeSelectEl = document.getElementById("train-resume-select");
-const trainResumeInfoEl = document.getElementById("train-resume-info");
-const trainResumeStepsEl = document.getElementById("train-resume-steps");
-let checkpointSteps = {};
-const trainStatusBadgeEl = document.getElementById("train-status-badge");
-const trainStepsEl = document.getElementById("train-steps");
-const trainStepsCustomEl = document.getElementById("train-steps-custom");
-const wrapCustomStepsEl = document.getElementById("wrap-custom-steps");
-const trainModelNameEl = document.getElementById("train-model-name");
-const trainParallelSelectEl = document.getElementById("train-parallel-select");
-let prevTrainStatus = "idle";
-const btnTrainStartEl = document.getElementById("btn-train-start");
-const btnTrainStopEl = document.getElementById("btn-train-stop");
-const trainProgressBarEl = document.getElementById("train-progress-bar");
-const trainProgressTextEl = document.getElementById("train-progress-text");
-const trainSpsTextEl = document.getElementById("train-sps-text");
-const trainWinRateEl = document.getElementById("train-win-rate");
-const trainRewardEl = document.getElementById("train-reward");
-const trainPolicyLossEl = document.getElementById("train-policy-loss");
-const trainValueLossEl = document.getElementById("train-value-loss");
-const trainElapsedEl = document.getElementById("train-elapsed");
-
 const UNIT_ICONS = { rifle: "R", sniper: "S", tank: "T" };
 
 async function api(path, body) {
@@ -163,98 +137,14 @@ function populateSelect(selectEl, checkpoints, selectedVal, defaultText, allowEm
   }
 }
 
-function updateModelNamePlaceholder() {
-  if (!trainModelNameEl) return;
-  const side = trainSideSelectEl ? trainSideSelectEl.value : "axis";
-  const isResume = trainResumeSelectEl && !!trainResumeSelectEl.value;
-  if (isResume) {
-    trainModelNameEl.placeholder = "e.g. overwrite or new name";
-  } else {
-    const prefix = side === "axis" ? "axis_v1" : "soviet_v1";
-    trainModelNameEl.placeholder = `e.g. ${prefix} (optional)`;
-  }
-}
-
-function updateResumeStepInfo() {
-  if (!trainResumeInfoEl || !trainResumeStepsEl || !trainResumeSelectEl) return;
-  const val = trainResumeSelectEl.value;
-  if (!val) {
-    trainResumeInfoEl.className = "resume-info-box scratch";
-    trainResumeStepsEl.textContent = "Fresh start (0 prior steps)";
-  } else {
-    trainResumeInfoEl.className = "resume-info-box";
-    const steps = checkpointSteps[val];
-    if (steps !== undefined && steps !== null) {
-      trainResumeStepsEl.textContent = `${steps.toLocaleString()} steps done`;
-    } else {
-      trainResumeStepsEl.textContent = "Unknown steps";
-    }
-  }
-}
+window.api = api;
+window.showMessage = showMessage;
+window.populateSelect = populateSelect;
 
 function renderTraining(t) {
-  if (!t) return;
-  const statusStr = t.status || "idle";
-  trainStatusBadgeEl.textContent = statusStr.toUpperCase();
-  trainStatusBadgeEl.className = "badge " + statusStr.toLowerCase();
-
-  const isRunning = !!t.is_running || statusStr === "training";
-  btnTrainStartEl.disabled = isRunning;
-  btnTrainStopEl.disabled = !isRunning;
-  if (trainSideSelectEl) trainSideSelectEl.disabled = isRunning;
-  if (trainOpponentSelectEl) trainOpponentSelectEl.disabled = isRunning;
-  if (trainOppModelSelectEl) trainOppModelSelectEl.disabled = isRunning;
-  if (trainStepsEl) trainStepsEl.disabled = isRunning;
-  if (trainStepsCustomEl) trainStepsCustomEl.disabled = isRunning;
-  if (trainResumeSelectEl) trainResumeSelectEl.disabled = isRunning;
-  if (trainModelNameEl) trainModelNameEl.disabled = isRunning;
-  if (trainParallelSelectEl) trainParallelSelectEl.disabled = isRunning;
-
-  const pct = Math.min(100, Math.max(0, t.progress || 0));
-  trainProgressBarEl.style.width = pct + "%";
-  trainProgressTextEl.textContent = `${pct}% (${(t.step || 0).toLocaleString()} / ${(t.total_steps || 0).toLocaleString()})`;
-  trainSpsTextEl.textContent = `${t.sps || 0} SPS`;
-
-  trainWinRateEl.textContent = t.win_rate !== undefined && t.win_rate !== null ? `${t.win_rate}%` : "--%";
-  if (trainRewardEl) {
-    trainRewardEl.textContent = (t.reward !== undefined && t.reward !== null)
-      ? ((t.reward >= 0 ? "+" : "") + Number(t.reward).toFixed(3))
-      : "--";
+  if (window.TrainingHub) {
+    window.TrainingHub.render(t);
   }
-  trainPolicyLossEl.textContent = t.policy_loss !== undefined && t.policy_loss !== null ? t.policy_loss : "--";
-  trainValueLossEl.textContent = t.value_loss !== undefined && t.value_loss !== null ? t.value_loss : "--";
-  trainElapsedEl.textContent = `${Math.round(t.elapsed || 0)}s`;
-
-  if (window.TrainingGraph && Array.isArray(t.reward_history)) {
-    window.TrainingGraph.setData(t.reward_history);
-  }
-
-  if (t.checkpoint_steps) {
-    checkpointSteps = Object.assign({}, checkpointSteps, t.checkpoint_steps);
-  }
-
-  const axisCurrent = (state && state.ai_models && state.ai_models.axis) || (t.team_checkpoints && t.team_checkpoints.axis) || t.active_checkpoint;
-  const sovietCurrent = (state && state.ai_models && state.ai_models.soviet) || (t.team_checkpoints && t.team_checkpoints.soviet) || t.active_checkpoint;
-
-  populateSelect(modelSelectAxisEl, t.checkpoints, axisCurrent, "No checkpoint available", false, checkpointSteps);
-  populateSelect(modelSelectSovietEl, t.checkpoints, sovietCurrent, "No checkpoint available", false, checkpointSteps);
-  populateSelect(trainResumeSelectEl, t.checkpoints, trainResumeSelectEl.value, "Start from scratch (New model)", true, checkpointSteps);
-  if (trainOppModelSelectEl) {
-    populateSelect(trainOppModelSelectEl, t.checkpoints, trainOppModelSelectEl.value, "No checkpoint available", false, checkpointSteps);
-  }
-  updateResumeStepInfo();
-  updateModelNamePlaceholder();
-
-  if (prevTrainStatus === "training" && statusStr === "completed") {
-    const cpName = t.latest_checkpoint ? t.latest_checkpoint.split(/[\\/]/).pop() : (t.model_name || "checkpoint");
-    showMessage(`Training completed! New model saved: ${cpName}`);
-    if (trainResumeSelectEl && cpName) {
-      trainResumeSelectEl.value = cpName;
-      updateResumeStepInfo();
-      updateModelNamePlaceholder();
-    }
-  }
-  prevTrainStatus = statusStr;
 }
 
 
@@ -486,109 +376,6 @@ async function onAiToggle() {
 
 aiAxisEl.addEventListener("change", onAiToggle);
 aiSovietEl.addEventListener("change", onAiToggle);
-if (trainResumeSelectEl) {
-  trainResumeSelectEl.addEventListener("change", updateResumeStepInfo);
-}
-if (trainStepsEl && wrapCustomStepsEl) {
-  trainStepsEl.addEventListener("change", () => {
-    if (trainStepsEl.value === "custom") {
-      wrapCustomStepsEl.classList.remove("hidden");
-      if (trainStepsCustomEl) {
-        if (!trainStepsCustomEl.value) trainStepsCustomEl.value = "20000";
-        trainStepsCustomEl.focus();
-        trainStepsCustomEl.select();
-      }
-    } else {
-      wrapCustomStepsEl.classList.add("hidden");
-    }
-  });
-}
-
-if (trainOpponentSelectEl && wrapOpponentCheckpointEl) {
-  trainOpponentSelectEl.addEventListener("change", () => {
-    if (trainOpponentSelectEl.value === "checkpoint") {
-      wrapOpponentCheckpointEl.classList.remove("hidden");
-    } else {
-      wrapOpponentCheckpointEl.classList.add("hidden");
-    }
-  });
-}
-
-if (trainSideSelectEl) {
-  trainSideSelectEl.addEventListener("change", () => {
-    updateModelNamePlaceholder();
-  });
-}
-
-if (trainResumeSelectEl) {
-  trainResumeSelectEl.addEventListener("change", () => {
-    updateResumeStepInfo();
-    updateModelNamePlaceholder();
-  });
-}
-
-btnTrainStartEl.addEventListener("click", async () => {
-  let steps;
-  if (trainStepsEl && trainStepsEl.value === "custom") {
-    steps = parseInt(trainStepsCustomEl ? trainStepsCustomEl.value : "", 10);
-    if (isNaN(steps) || steps <= 0) {
-      showMessage("Please enter a valid positive number of timesteps.");
-      if (trainStepsCustomEl) trainStepsCustomEl.focus();
-      return;
-    }
-    if (steps < 100) {
-      showMessage("Timesteps must be at least 100.");
-      if (trainStepsCustomEl) trainStepsCustomEl.focus();
-      return;
-    }
-  } else {
-    steps = parseInt(trainStepsEl ? trainStepsEl.value : "20000", 10) || 20000;
-  }
-
-  const trainSide = trainSideSelectEl ? trainSideSelectEl.value : "axis";
-  const opponent = trainOpponentSelectEl ? trainOpponentSelectEl.value : "heuristic";
-  const oppCheckpoint = (opponent === "checkpoint" && trainOppModelSelectEl) ? trainOppModelSelectEl.value || null : null;
-
-  if (opponent === "checkpoint" && !oppCheckpoint) {
-    showMessage("Please select an opponent model checkpoint.");
-    if (trainOppModelSelectEl) trainOppModelSelectEl.focus();
-    btnTrainStartEl.disabled = false;
-    return;
-  }
-
-  const resumeCp = trainResumeSelectEl.value || null;
-  const customModelName = trainModelNameEl ? trainModelNameEl.value.trim() : "";
-  const nameSuffix = customModelName ? ` as "${customModelName}"` : "";
-  const parallelEnvs = parseInt(trainParallelSelectEl ? trainParallelSelectEl.value : "4", 10) || 4;
-  btnTrainStartEl.disabled = true;
-  const sideLabel = trainSide === "axis" ? "Axis (Nazi)" : "Soviet";
-  const oppLabel = opponent === "checkpoint" ? `Checkpoint (${oppCheckpoint})` : "Normal AI";
-
-  if (resumeCp) {
-    const priorSteps = checkpointSteps[resumeCp];
-    const stepText = (priorSteps !== undefined && priorSteps !== null) ? ` (${priorSteps.toLocaleString()} steps already done)` : "";
-    showMessage(`Resuming ${sideLabel} training vs ${oppLabel} from ${resumeCp}${stepText}${nameSuffix} [${parallelEnvs}x parallel] for ${steps.toLocaleString()} steps on GPU...`);
-  } else {
-    showMessage(`Launching ${sideLabel} training vs ${oppLabel} (${steps.toLocaleString()} steps)${nameSuffix} [${parallelEnvs}x parallel] from scratch on GPU...`);
-  }
-  const res = await api("/api/training/start", {
-    total_timesteps: steps,
-    num_envs: parallelEnvs,
-    resume_checkpoint: resumeCp,
-    train_side: trainSide,
-    opponent: opponent,
-    opponent_checkpoint: oppCheckpoint,
-    model_name: customModelName || null,
-  });
-  if (res && res.training) renderTraining(res.training);
-});
-
-btnTrainStopEl.addEventListener("click", async () => {
-  btnTrainStopEl.disabled = true;
-  showMessage("Stopping RL training run...");
-  const res = await api("/api/training/stop", {});
-  if (res && res.training) renderTraining(res.training);
-});
 
 modelSelectAxisEl.addEventListener("change", async () => {
   const selected = modelSelectAxisEl.value;

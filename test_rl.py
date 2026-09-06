@@ -295,6 +295,43 @@ class TestRLModel(unittest.TestCase):
             self.assertEqual(len(loaded["reward_history"]), 2)
             self.assertEqual(loaded["num_envs"], 4)
 
+    def test_env_opponent_pool_round_robin_cycling(self):
+        called = []
+        def opp0(game, team): called.append("opp0"); game.end_turn()
+        def opp1(game, team): called.append("opp1"); game.end_turn()
+        def opp2(game, team): called.append("opp2"); game.end_turn()
+
+        pool = [("opp0", opp0), ("opp1", opp1), ("opp2", opp2)]
+
+        # Env starting at index 0
+        env0 = Stalingrad1v1Env(rng=random.Random(42), train_side="axis", opponent_pool=pool, initial_opp_idx=0)
+        self.assertEqual(env0.current_opponent_name, "opp0")
+        obs, info = env0.reset()
+        self.assertEqual(env0.current_opponent_name, "opp1")
+        self.assertEqual(info["opponent_name"], "opp1")
+        obs, info = env0.reset()
+        self.assertEqual(env0.current_opponent_name, "opp2")
+        obs, info = env0.reset()
+        self.assertEqual(env0.current_opponent_name, "opp0")
+
+        # Env starting at offset 1
+        env1 = Stalingrad1v1Env(rng=random.Random(42), train_side="axis", opponent_pool=pool, initial_opp_idx=1)
+        self.assertEqual(env1.current_opponent_name, "opp1")
+        obs, info = env1.reset()
+        self.assertEqual(env1.current_opponent_name, "opp2")
+        obs, info = env1.reset()
+        self.assertEqual(env1.current_opponent_name, "opp0")
+
+    def test_train_ppo_parse_args_opponents(self):
+        import sys
+        from unittest.mock import patch
+        from rl.train_ppo import parse_args
+        test_args = ["train_ppo.py", "--opponents", "heuristic,axis_v1.pt,soviet_v1.pt"]
+        with patch.object(sys, "argv", test_args):
+            args = parse_args()
+            self.assertEqual(args.opponents, "heuristic,axis_v1.pt,soviet_v1.pt")
+            self.assertEqual(args.train_side, "axis")
+
 
 if __name__ == "__main__":
     unittest.main()

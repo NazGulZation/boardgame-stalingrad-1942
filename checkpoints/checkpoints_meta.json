@@ -11,7 +11,11 @@
     "total_steps": 4608
   },
   "stalingrad_axis_v1.pt": {
-    "total_steps": 172544,
-    "timestamp": 1788664048
+    "total_steps": 1585664,
+    "timestamp": 1788681102
+  },
+  "stalingrad_soviet_v1.pt": {
+    "total_steps": 2363392,
+    "timestamp": 1788676715
   }
 }

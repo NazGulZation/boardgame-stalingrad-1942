@@ -40,12 +40,12 @@ extend or refactor safely.
   Hot-seat + AI options + live web-based RL Training Hub in the sidebar.
 - Run tests:
   `C:\Anaconda\envs\stalingrad-rl\python.exe -m unittest discover -s . -p "test_*.py"`
-  (All 130 tests must pass).
+  (All 135 tests must pass).
 - Size budget:
   `C:\Anaconda\python.exe .agents\skills\stalingrad-1942\scripts\check_file_sizes.py`
 - Train RL model directly:
-  `C:\Anaconda\envs\stalingrad-rl\python.exe rl/train_ppo.py --total-timesteps 50000 --num-envs 4 --train-side axis --opponent heuristic`
-  (Optionally `--resume-checkpoint checkpoints/<model>.pt` to continue training).
+  `C:\Anaconda\envs\stalingrad-rl\python.exe rl/train_ppo.py --total-timesteps 50000 --num-envs 4 --train-side axis --opponents heuristic`
+  (Optionally `--opponents heuristic checkpoints/model1.pt` and `--resume-checkpoint checkpoints/<model>.pt` to continue training).
 
 ## Project map
 
@@ -56,21 +56,23 @@ extend or refactor safely.
 | `game.py` | `Game`: deployments, turn/round flow, move/attack/end_turn validation, sticky objective control, victory, serialization |
 | `ai.py` | Greedy heuristic AI: `play_turn(game, team)` plays one full side through the engine (pure Python, no Flask) |
 | `app.py` | Thin Flask controller: routes, global `GAME`, `ValueError` -> HTTP 400, AI & training endpoints |
-| `rl/stalingrad_env.py` | 1v1 Gym environment, (15, 10, 12) spatial tensor observation, 897 discrete action space with action masking |
+| `rl/stalingrad_env.py` | 1v1 Gym environment, (15, 10, 12) spatial tensor observation, 897 discrete action space with action masking, multi-opponent round-robin pool |
 | `rl/models.py` | ResNet Actor-Critic architecture and `CategoricalMasked` distribution |
-| `rl/train_ppo.py` | CleanRL single-file Maskable PPO training loop with GAE, single-sided perspective training, resume support, and status JSON reporting |
+| `rl/train_ppo.py` | CleanRL single-file Maskable PPO training loop with GAE, multi-opponent pool round-robin, resume support, and status JSON reporting |
 | `rl/agent.py` | `RLAgent` inference wrapper matching `ai.play_turn`, plus head-to-head evaluation utilities |
 | `rl/train_manager.py` | Non-blocking background subprocess training manager, multi-agent cache, status tracker, and model loader |
 | `templates/index.html` | Board page shell (balanced 3-column dashboard, overlay, buttons, per-team AI controls, RL Training Hub) |
-| `static/css/style.css` | Layout + winter Stalingrad theme, 3-column responsive grid, training dashboard styles |
-| `static/js/game.js` | Rendering, click handling, `/api/*` calls, 2.0s state polling, AI auto-play, training UI sync |
+| `static/css/style.css` | Layout + winter Stalingrad theme, 3-column responsive grid |
+| `static/css/training.css` | RL Training Hub styles, opponent pool checklist, custom step controls, badges |
+| `static/js/game.js` | Board rendering, click handling, `/api/*` calls, 2.0s state polling, AI auto-play, overlay |
+| `static/js/training_hub.js` | RL Training Hub UI controller, opponent pool checklist sync, subprocess status polling |
 | `static/js/training_graph.js` | Interactive HTML5 Canvas reward trend graph, N-steps windowing, hover crosshairs, 5s live polling |
-| `test_board.py` | Board/terrain/movement tests (14) |
-| `test_units.py` | Unit stats + combat tests (12) |
-| `test_game.py` | Rules/turn/victory/reinforcement + golden scenario (31) |
-| `test_app.py` | Flask API integration + regression cycle + AI & training endpoints (28) |
+| `test_board.py` | Board/terrain/movement tests (17) |
+| `test_units.py` | Unit stats + combat tests (10) |
+| `test_game.py` | Rules/turn/victory/reinforcement + golden scenario (40) |
+| `test_app.py` | Flask API integration + regression cycle + AI & training endpoints (36) |
 | `test_ai.py` | AI combat/positioning/turn-flow + full seeded battles (11) |
-| `test_rl.py` | RL observation encoding, action masking, step execution, and model forward pass tests (18) |
+| `test_rl.py` | RL observation encoding, action masking, step execution, opponent pool, and model forward pass tests (21) |
 
 ## Common tasks
 

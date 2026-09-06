@@ -154,6 +154,9 @@ def training_start():
     opponent = data.get("opponent", "heuristic")
     opponent_checkpoint = data.get("opponent_checkpoint")
     model_name = data.get("model_name")
+    opponents = data.get("opponents")
+    if isinstance(opponents, list) and len(opponents) == 0:
+        return jsonify({"error": "Pilih minimal satu lawan untuk training."}), 400
 
     success, message = TRAINING_MANAGER.start_training(
         total_timesteps=total_timesteps,
@@ -164,6 +167,7 @@ def training_start():
         opponent=opponent,
         opponent_checkpoint=opponent_checkpoint,
         model_name=model_name,
+        opponents=opponents,
     )
     if not success:
         return jsonify({"error": message}), 400

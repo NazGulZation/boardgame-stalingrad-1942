@@ -213,12 +213,30 @@ class Stalingrad1v1Env:
     """
 
     def __init__(self, rng=None, reward_shaping=True, train_side="axis",
-                 opponent_policy=None, strict_turn_completion=False):
+                 opponent_policy=None, strict_turn_completion=False,
+                 opponent_pool=None, initial_opp_idx=0):
         self._injectable_rng = rng
         self.reward_shaping = reward_shaping
         self.train_side = train_side
-        self.opponent_policy = opponent_policy
         self.strict_turn_completion = strict_turn_completion
+
+        # Normalize opponent pool
+        if opponent_pool:
+            normalized_pool = []
+            for item in opponent_pool:
+                if isinstance(item, (tuple, list)) and len(item) == 2:
+                    normalized_pool.append((str(item[0]), item[1]))
+                elif hasattr(item, "__call__"):
+                    normalized_pool.append((getattr(item, "__name__", "opponent"), item))
+                else:
+                    normalized_pool.append((str(item), item))
+            self.opponent_pool = normalized_pool
+        else:
+            self.opponent_pool = None
+
+        self.opp_cycle_idx = initial_opp_idx
+        self.opponent_policy = opponent_policy
+        self.current_opponent_name = "opponent" if opponent_policy else None
         self.game = None
         self.reset()
 
@@ -230,6 +248,15 @@ class Stalingrad1v1Env:
             rng = self._injectable_rng
         else:
             rng = random.Random()
+
+        # If an opponent pool is configured, select the next opponent in round-robin sequence
+        if self.opponent_pool:
+            name, policy = self.opponent_pool[self.opp_cycle_idx % len(self.opponent_pool)]
+            self.current_opponent_name = name
+            self.opponent_policy = policy
+            self.opp_cycle_idx = (self.opp_cycle_idx + 1) % len(self.opponent_pool)
+        elif self.opponent_policy is not None and not self.current_opponent_name:
+            self.current_opponent_name = getattr(self.opponent_policy, "__name__", "opponent")
 
         self.game = Game(rng=rng)
         self._prev_ctrl = dict(self.game.objective_control())
@@ -251,6 +278,7 @@ class Stalingrad1v1Env:
             "turn": self.game.turn,
             "round": self.game.round,
             "action_mask": mask,
+            "opponent_name": self.current_opponent_name,
         }
         return obs, info
 
@@ -282,6 +310,7 @@ class Stalingrad1v1Env:
                 "turn": current_team,
                 "winner": self.game.winner,
                 "action_mask": mask,
+                "opponent_name": self.current_opponent_name,
             }
 
         act_type, unit_id, target = decode_action(action_idx, self.game, current_team)
@@ -383,6 +412,7 @@ class Stalingrad1v1Env:
             "round": self.game.round,
             "winner": self.game.winner,
             "action_mask": mask,
+            "opponent_name": self.current_opponent_name,
         }
 
         return obs, reward, terminated, truncated, info

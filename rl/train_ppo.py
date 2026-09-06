@@ -11,6 +11,7 @@ Features:
 import argparse
 import json
 import os
+import re
 import sys
 import random
 import time
@@ -25,7 +26,14 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.tensorboard import SummaryWriter
+try:
+    from torch.utils.tensorboard import SummaryWriter
+except ImportError:
+    class SummaryWriter:
+        def __init__(self, *args, **kwargs): pass
+        def add_text(self, *args, **kwargs): pass
+        def add_scalar(self, *args, **kwargs): pass
+        def close(self): pass
 
 import ai
 from rl.models import StalingradResNet, CategoricalMasked
@@ -102,10 +110,12 @@ def parse_args():
                         help="path to existing checkpoint (.pt) to resume training from")
     parser.add_argument("--train-side", type=str, default="axis", choices=["axis", "soviet"],
                         help="the side to train from its perspective ('axis' or 'soviet')")
-    parser.add_argument("--opponent", type=str, default="heuristic", choices=["heuristic", "checkpoint", "self"],
-                        help="the opponent policy: 'heuristic', 'checkpoint', or 'self'")
+    parser.add_argument("--opponent", type=str, default="heuristic", choices=["heuristic", "checkpoint", "self", "pool"],
+                        help="the opponent policy: 'heuristic', 'checkpoint', 'self', or 'pool'")
     parser.add_argument("--opponent-checkpoint", type=str, default="",
                         help="path to opponent model checkpoint if --opponent=checkpoint")
+    parser.add_argument("--opponents", type=str, default="",
+                        help="comma-separated list of opponents in the pool (e.g. 'heuristic,axis_v1.pt')")
     parser.add_argument("--model-name", type=str, default="",
                         help="custom output filename for the saved model checkpoint (e.g. 'my_model.pt')")
     parser.add_argument("--min-lr", type=float, default=5e-5,
@@ -138,23 +148,64 @@ def train():
     print(f"Using device: {device}")
 
     # Opponent setup
-    if args.opponent == "heuristic":
-        opponent_policy = ai.play_turn
-    elif args.opponent == "checkpoint" and args.opponent_checkpoint:
-        opp_agent = RLAgent(args.opponent_checkpoint, device=device)
-        opponent_policy = opp_agent.play_turn
-    else:
-        opponent_policy = None
+    opponent_pool = []
+    if args.opponents and args.opponents.strip():
+        items = [x.strip() for x in args.opponents.split(",") if x.strip()]
+        for item in items:
+            if item.lower() == "heuristic":
+                opponent_pool.append(("Heuristic AI", ai.play_turn))
+            else:
+                cp_path = item if os.path.isabs(item) else os.path.join(args.save_dir, item)
+                if os.path.isfile(cp_path):
+                    agent_obj = RLAgent(cp_path, device=device)
+                    opponent_pool.append((os.path.basename(item), agent_obj.play_turn))
+                else:
+                    print(f"Warning: Opponent checkpoint '{cp_path}' not found, skipping.")
 
-    # Environment setup
-    envs = [
-        Stalingrad1v1Env(
-            rng=random.Random(args.seed + i),
-            train_side=args.train_side,
-            opponent_policy=opponent_policy,
-            strict_turn_completion=True,
-        ) for i in range(args.num_envs)
-    ]
+    # Fallback to single opponent if no pool specified
+    if not opponent_pool:
+        if args.opponent == "heuristic":
+            opponent_pool.append(("Heuristic AI", ai.play_turn))
+        elif args.opponent == "checkpoint" and args.opponent_checkpoint:
+            cp_path = args.opponent_checkpoint if os.path.isabs(args.opponent_checkpoint) else os.path.join(args.save_dir, args.opponent_checkpoint)
+            if os.path.isfile(cp_path):
+                opp_agent = RLAgent(cp_path, device=device)
+                opponent_pool.append((os.path.basename(cp_path), opp_agent.play_turn))
+            else:
+                opponent_pool.append(("Heuristic AI", ai.play_turn))
+        elif args.opponent == "self":
+            opponent_pool = None
+        else:
+            opponent_pool.append(("Heuristic AI", ai.play_turn))
+
+    if opponent_pool:
+        opp_names = [name for name, _ in opponent_pool]
+        print(f"Active Opponent Pool ({len(opponent_pool)}): {', '.join(opp_names)}")
+        eval_opp_name = f"Pool ({len(opponent_pool)})" if len(opponent_pool) > 1 else opponent_pool[0][0]
+    else:
+        print("Active Opponent: Self-play")
+        eval_opp_name = "Self-play"
+
+    # Environment setup with round-robin pool offset
+    if opponent_pool:
+        envs = [
+            Stalingrad1v1Env(
+                rng=random.Random(args.seed + i),
+                train_side=args.train_side,
+                opponent_pool=opponent_pool,
+                initial_opp_idx=i % len(opponent_pool),
+                strict_turn_completion=True,
+            ) for i in range(args.num_envs)
+        ]
+    else:
+        envs = [
+            Stalingrad1v1Env(
+                rng=random.Random(args.seed + i),
+                train_side=args.train_side,
+                opponent_policy=None,
+                strict_turn_completion=True,
+            ) for i in range(args.num_envs)
+        ]
 
     # Agent setup
     agent = StalingradResNet().to(device)
@@ -357,21 +408,33 @@ def train():
         if update % 5 == 0 or update == num_updates:
             print(f"Update {update}/{num_updates} | Step {global_step} | SPS: {int(global_step / (time.time() - start_time))} | Reward: {ema_reward:.4f} | Policy Loss: {pg_loss.item():.4f} | Value Loss: {v_loss.item():.4f}")
 
-        # Periodic evaluation against heuristic AI
+        # Periodic evaluation against opponent pool
         if global_step - last_eval_step >= args.eval_interval or update == num_updates:
             last_eval_step = global_step
             eval_agent = RLAgent(agent, device=device)
-            if args.train_side == "axis":
-                eval_res = evaluate_matchup(eval_agent, ai.play_turn, num_games=10)
-                last_win_rate = eval_res["axis_win_rate"]
-                side_label = "Axis"
-            else:
-                eval_res = evaluate_matchup(ai.play_turn, eval_agent, num_games=10)
-                last_win_rate = eval_res["soviet_wins"] / eval_res["games"]
-                side_label = "Soviet"
-            writer.add_scalar(f"eval/{args.train_side}_win_rate_vs_ai", last_win_rate, global_step)
-            writer.add_scalar("eval/avg_rounds", eval_res["avg_rounds"], global_step)
-            print(f"--- Eval @ step {global_step}: {side_label} Win Rate vs Heuristic AI: {last_win_rate*100:.1f}% | Avg Rounds: {eval_res['avg_rounds']:.1f} ---")
+            pool_eval = {}
+            pool_win_rates = []
+
+            targets = opponent_pool if opponent_pool else [("Heuristic AI", ai.play_turn)]
+            games_per_opp = 5 if len(targets) > 1 else 10
+            side_label = "Axis" if args.train_side == "axis" else "Soviet"
+
+            for opp_name, opp_fn in targets:
+                if args.train_side == "axis":
+                    eval_res = evaluate_matchup(eval_agent, opp_fn, num_games=games_per_opp)
+                    wr = eval_res["axis_win_rate"]
+                else:
+                    eval_res = evaluate_matchup(opp_fn, eval_agent, num_games=games_per_opp)
+                    wr = eval_res["soviet_wins"] / max(1, eval_res["games"])
+                pool_eval[opp_name] = round(wr * 100, 1)
+                pool_win_rates.append(wr)
+                clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', opp_name)
+                writer.add_scalar(f"eval/{args.train_side}_vs_{clean_name}", wr, global_step)
+
+            last_win_rate = float(np.mean(pool_win_rates)) if pool_win_rates else 0.0
+            writer.add_scalar(f"eval/{args.train_side}_win_rate_pool_avg", last_win_rate, global_step)
+            eval_summary = " | ".join([f"{n}: {w}%" for n, w in pool_eval.items()])
+            print(f"--- Eval @ step {global_step}: {side_label} Win Rate Pool Avg: {last_win_rate*100:.1f}% ({eval_summary}) ---")
 
         # Write live progress to status file
         resumed_name = os.path.basename(args.resume_checkpoint) if args.resume_checkpoint else None
@@ -384,10 +447,14 @@ def train():
             "policy_loss": round(pg_loss.item(), 4),
             "value_loss": round(v_loss.item(), 4),
             "win_rate": round(last_win_rate * 100, 1),
+            "pool_eval": pool_eval if 'pool_eval' in locals() else {},
+            "opponents": [name for name, _ in opponent_pool] if opponent_pool else [args.opponent],
             "elapsed": round(time.time() - start_time, 1),
             "device": str(device),
             "train_side": args.train_side,
             "opponent": args.opponent,
+            "opponent_checkpoint": os.path.basename(args.opponent_checkpoint) if args.opponent_checkpoint else None,
+            "eval_opponent_name": eval_opp_name,
             "resumed_from": resumed_name,
             "num_envs": args.num_envs,
             "reward": round(ema_reward, 4),

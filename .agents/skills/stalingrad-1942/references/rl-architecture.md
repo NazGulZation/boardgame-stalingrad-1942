@@ -73,13 +73,16 @@ distribution, guaranteeing zero invalid action attempts during sampling.
 * **Framework**: CleanRL-style single-file Maskable PPO.
 * **Algorithm**: Actor-Critic with Generalized Advantage Estimation ($\lambda=0.95, \gamma=0.99$).
 * **Single-Sided Perspective**: Trains from the perspective of one army (`--train-side axis` or `soviet`).
-  When the agent ends its turn, the opponent (`--opponent heuristic` or `checkpoint`) automatically plays.
+  When the agent ends its turn, the opponent automatically plays.
   Opponent counter-attack damage and losses are folded into the transition reward, eliminating zero-sum GAE sign corruption.
+* **Round-Robin Opponent Pool & Catastrophic Forgetting Prevention**:
+  Supports `--opponents <opp1> <opp2> ...` where opponents can be `heuristic` and/or checkpoint paths.
+  Each environment $i \in [0..\text{num\_envs}-1]$ is initialized with offset $i \pmod K$, and cycles to the next opponent on every episode `reset()`. This guarantees an even, balanced distribution across parallel rollouts to prevent policy degeneration and non-transitive meta-cycling.
 * **Learning Rate Clamp**: `--min-lr 5e-5` prevents learning rates from flatlining to zero during annealing.
 * **Parallel Environments**: `--num-envs` configures 1 to 16 parallel game environments to scale rollout throughput and GPU batching (scaling from ~90 SPS up to ~500 SPS).
 * **Reward Telemetry & Graphing**: Tracks rollout mean and exponential moving average (EMA) reward at each update. Maintains `reward_history` coordinates for live 5-second polling and interactive HTML5 Canvas reward trend inspection in the web UI.
-* **Evaluation**: Evaluates 10 games vs the heuristic AI in `ai.py` every $N$ steps from the trained side's perspective.
-* **Telemetry**: Atomically writes live progress, SPS, losses, win rate, reward, and reward history to `checkpoints/train_status.json`.
+* **Evaluation**: Evaluates matchups against every opponent in the pool every $N$ steps, reporting both per-opponent win rates (`pool_eval`) and average win rate.
+* **Telemetry**: Atomically writes live progress, SPS, losses, win rate, per-opponent win rates, reward, and reward history to `checkpoints/train_status.json`.
 
 ---
 
@@ -90,8 +93,8 @@ distribution, guaranteeing zero invalid action attempts during sampling.
 * **Model Serving**: Caches the active `RLAgent` instance for zero-latency in-game moves.
 
 ### HTTP Endpoints
-* `GET /api/training/status`: Returns current status, step, SPS, losses, available checkpoints, and checkpoint_steps completed.
-* `POST /api/training/start`: Starts training with `{ total_timesteps, num_envs, learning_rate, train_side, opponent, opponent_checkpoint, resume_checkpoint }`.
+* `GET /api/training/status`: Returns current status, step, SPS, losses, pool_eval, available checkpoints, and checkpoint_steps completed.
+* `POST /api/training/start`: Starts training with `{ total_timesteps, num_envs, learning_rate, train_side, opponents: [...], resume_checkpoint, model_name }`.
 * `POST /api/training/stop`: Gracefully terminates the running process.
 * `POST /api/training/select_model`: Selects active checkpoint for gameplay `{ model }`.
-* `POST /api/set_ai_type`: Configures `{ axis: "heuristic"|"rl", soviet: "heuristic"|"rl" }`.
+* `POST /api/set_ai_type`: Configures `{ axis: "heuristic"|"rl", soviet: "heuristic"|"rl", axis_model, soviet_model }`.

@@ -237,6 +237,27 @@ class TestTrainingEndpoints(AppTestBase):
         self.assertEqual(kwargs["opponent"], "checkpoint")
         self.assertEqual(kwargs["opponent_checkpoint"], "stalingrad_1v1_ppo_final.pt")
 
+    @mock.patch.object(app_module.TRAINING_MANAGER, "start_training", return_value=(True, "started"))
+    def test_training_start_with_opponents_list(self, mock_start):
+        res = self.client.post("/api/training/start", json={
+            "total_timesteps": 20000,
+            "train_side": "axis",
+            "opponents": ["heuristic", "stalingrad_axis_v1.pt"],
+        })
+        self.assertEqual(res.status_code, 200)
+        mock_start.assert_called_once()
+        kwargs = mock_start.call_args[1]
+        self.assertEqual(kwargs["opponents"], ["heuristic", "stalingrad_axis_v1.pt"])
+
+    def test_training_start_with_empty_opponents_returns_400(self):
+        res = self.client.post("/api/training/start", json={
+            "total_timesteps": 20000,
+            "train_side": "axis",
+            "opponents": [],
+        })
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("error", res.get_json())
+
     def test_set_ai_type(self):
         res = self.client.post("/api/set_ai_type", json={"axis": "rl", "soviet": "heuristic"})
         self.assertEqual(res.status_code, 200)
@@ -340,6 +361,29 @@ class TestTrainingEndpoints(AppTestBase):
         self.assertIn("reward_history", data)
         self.assertIn("num_envs", data)
         self.assertIsInstance(data["reward_history"], list)
+
+    def test_training_manager_start_training_opponents(self):
+        import tempfile
+        import subprocess
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from rl.train_manager import TrainingManager
+            tm = TrainingManager(checkpoints_dir=tmpdir)
+            with patch.object(subprocess, "Popen") as mock_popen:
+                mock_proc = mock.MagicMock()
+                mock_proc.poll.return_value = None
+                mock_popen.return_value = mock_proc
+                success, msg = tm.start_training(
+                    total_timesteps=5000,
+                    train_side="axis",
+                    opponents=["heuristic", "model_a.pt", "model_b.pt"]
+                )
+                self.assertTrue(success)
+                mock_popen.assert_called_once()
+                cmd = mock_popen.call_args[0][0]
+                self.assertIn("--opponents", cmd)
+                idx = cmd.index("--opponents")
+                self.assertEqual(cmd[idx + 1], "heuristic,model_a.pt,model_b.pt")
 
 
 if __name__ == "__main__":

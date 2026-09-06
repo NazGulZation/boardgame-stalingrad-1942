@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Stalingrad 1942 - Board Wargame</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/training.css') }}">
 </head>
 <body>
   <header>
@@ -85,63 +86,81 @@
           <span id="train-status-badge" class="badge idle">Idle</span>
         </div>
         <div class="train-controls">
-          <div class="input-row">
-            <label for="train-side-select">Train Side:</label>
-            <select id="train-side-select">
-              <option value="axis" selected>Axis (Nazi)</option>
-              <option value="soviet">Soviet (62nd Army)</option>
-            </select>
+          <!-- Training Identity & Checkpoint -->
+          <div class="train-group">
+            <div class="input-row">
+              <label for="train-side-select">Train Side:</label>
+              <select id="train-side-select">
+                <option value="axis" selected>Axis (Nazi 6th Army)</option>
+                <option value="soviet">Soviet (62nd Army)</option>
+              </select>
+            </div>
+            <div class="input-row">
+              <label for="train-resume-select">Resume from:</label>
+              <select id="train-resume-select">
+                <option value="">Start from scratch (New model)</option>
+              </select>
+            </div>
+            <div id="train-resume-info" class="resume-info-box scratch">
+              <span class="resume-info-label">Checkpoint history:</span>
+              <span id="train-resume-steps" class="resume-info-val">Fresh start (0 prior steps)</span>
+            </div>
+            <div class="input-row" id="wrap-model-name">
+              <label for="train-model-name">Save As:</label>
+              <input type="text" id="train-model-name" placeholder="e.g. axis_v1 (optional)" maxlength="40">
+            </div>
           </div>
-          <div class="input-row">
-            <label for="train-opponent-select">Opponent:</label>
-            <select id="train-opponent-select">
-              <option value="heuristic" selected>Normal AI (Heuristic)</option>
-              <option value="checkpoint">Model Checkpoint...</option>
-            </select>
+
+          <!-- Opponent Pool (Round-Robin Checklist) -->
+          <div class="train-group opponent-group">
+            <div class="opponent-group-header">
+              <span class="group-title">Opponents (Round-Robin Pool)</span>
+              <span id="opp-pool-count" class="badge-count">1 selected</span>
+            </div>
+            <div id="opponent-checklist" class="opponent-checklist">
+              <label class="opp-item opp-item-baseline">
+                <input type="checkbox" id="opp-check-heuristic" value="heuristic" checked>
+                <span class="opp-label" id="opp-heuristic-label">Bot Heuristic (Soviet 62nd Army)</span>
+                <span class="opp-badge badge-rule">Rule AI</span>
+              </label>
+              <div id="opp-checkpoints-list" class="opp-checkpoints-list">
+                <!-- Checkpoint items rendered via JS -->
+              </div>
+            </div>
+            <div class="opp-actions-bar">
+              <button type="button" id="btn-opp-all" class="btn-text">Select All</button>
+              <span class="opp-actions-sep">&bull;</span>
+              <button type="button" id="btn-opp-heuristic" class="btn-text">Heuristic Only</button>
+            </div>
           </div>
-          <div class="input-row hidden" id="wrap-opponent-checkpoint">
-            <label for="train-opp-model-select">Opponent Model:</label>
-            <select id="train-opp-model-select">
-              <option value="">Select checkpoint...</option>
-            </select>
+
+          <!-- Training Hyperparameters -->
+          <div class="train-group">
+            <div class="input-row">
+              <label for="train-steps">Timesteps:</label>
+              <select id="train-steps">
+                <option value="5000">5,000 steps (Quick)</option>
+                <option value="20000" selected>20,000 steps (Standard)</option>
+                <option value="50000">50,000 steps (Deep)</option>
+                <option value="custom">Custom (manual)...</option>
+              </select>
+            </div>
+            <div class="input-row hidden" id="wrap-custom-steps">
+              <label for="train-steps-custom">Manual steps:</label>
+              <input type="number" id="train-steps-custom" min="100" max="2000000" step="1000" value="20000" placeholder="e.g. 15000">
+            </div>
+            <div class="input-row" id="wrap-parallel-play">
+              <label for="train-parallel-select">Parallel Games:</label>
+              <select id="train-parallel-select" title="Run multiple parallel games to speed up training at the cost of higher CPU/RAM usage">
+                <option value="1">1 game (Sequential - Low Resource)</option>
+                <option value="2">2 games (Light Parallel)</option>
+                <option value="4" selected>4 games (Standard - Balanced)</option>
+                <option value="8">8 games (Fast - High Resource)</option>
+                <option value="16">16 games (Ultra - Max Resource)</option>
+              </select>
+            </div>
           </div>
-          <div class="input-row">
-            <label for="train-steps">Timesteps:</label>
-            <select id="train-steps">
-              <option value="5000">5,000 steps (Quick)</option>
-              <option value="20000" selected>20,000 steps (Standard)</option>
-              <option value="50000">50,000 steps (Deep)</option>
-              <option value="custom">Custom (manual)...</option>
-            </select>
-          </div>
-          <div class="input-row hidden" id="wrap-custom-steps">
-            <label for="train-steps-custom">Manual steps:</label>
-            <input type="number" id="train-steps-custom" min="100" max="2000000" step="1000" value="20000" placeholder="e.g. 15000">
-          </div>
-          <div class="input-row">
-            <label for="train-resume-select">Resume from:</label>
-            <select id="train-resume-select">
-              <option value="">Start from scratch (New model)</option>
-            </select>
-          </div>
-          <div id="train-resume-info" class="resume-info-box scratch">
-            <span class="resume-info-label">Checkpoint history:</span>
-            <span id="train-resume-steps" class="resume-info-val">Fresh start (0 prior steps)</span>
-          </div>
-          <div class="input-row" id="wrap-parallel-play">
-            <label for="train-parallel-select">Parallel Play:</label>
-            <select id="train-parallel-select" title="Run multiple parallel games to speed up training at the cost of higher CPU/RAM usage">
-              <option value="1">1 game (Sequential - Low Resource)</option>
-              <option value="2">2 games (Light Parallel)</option>
-              <option value="4" selected>4 games (Standard - Balanced)</option>
-              <option value="8">8 games (Fast - High Resource)</option>
-              <option value="16">16 games (Ultra - Max Resource)</option>
-            </select>
-          </div>
-          <div class="input-row" id="wrap-model-name">
-            <label for="train-model-name">Model Name:</label>
-            <input type="text" id="train-model-name" placeholder="e.g. axis_v1 (optional)" maxlength="40">
-          </div>
+
           <div class="train-btn-row">
             <button id="btn-train-start" class="btn-primary">Start Training</button>
             <button id="btn-train-stop" class="btn-secondary" disabled>Stop</button>
@@ -156,9 +175,10 @@
             <span id="train-sps-text">0 SPS</span>
           </div>
           <div class="stats-grid">
-            <div class="stat-card">
-              <span class="stat-label">Win vs AI</span>
+            <div class="stat-card stat-card-winrate">
+              <span id="train-win-rate-label" class="stat-label">Win vs AI</span>
               <span id="train-win-rate" class="stat-val">--%</span>
+              <div id="train-pool-breakdown" class="stat-breakdown hidden"></div>
             </div>
             <div class="stat-card">
               <span class="stat-label">Reward</span>
@@ -217,6 +237,7 @@
     </div>
   </div>
   <script src="{{ url_for('static', filename='js/training_graph.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/training_hub.js') }}"></script>
   <script src="{{ url_for('static', filename='js/game.js') }}"></script>
 </body>
 </html>
