@@ -89,6 +89,15 @@ function syncAiControls() {
     const sovietRadio = document.querySelector(`input[name="ai-type-soviet"][value="${state.ai_types.soviet || 'heuristic'}"]`);
     if (sovietRadio) sovietRadio.checked = true;
   }
+  if (state.training) {
+    const t = state.training;
+    const steps = t.checkpoint_steps || {};
+    const axisCurrent = (state.ai_models && state.ai_models.axis) || (t.team_checkpoints && t.team_checkpoints.axis) || t.active_checkpoint;
+    const sovietCurrent = (state.ai_models && state.ai_models.soviet) || (t.team_checkpoints && t.team_checkpoints.soviet) || t.active_checkpoint;
+    populateSelect(modelSelectAxisEl, t.checkpoints, axisCurrent, "No checkpoint available", false, steps);
+    populateSelect(modelSelectSovietEl, t.checkpoints, sovietCurrent, "No checkpoint available", false, steps);
+    renderTraining(t);
+  }
   if (state.ai_models) {
     if (state.ai_models.axis && modelSelectAxisEl.value !== state.ai_models.axis) {
       modelSelectAxisEl.value = state.ai_models.axis;
@@ -97,9 +106,6 @@ function syncAiControls() {
       modelSelectSovietEl.value = state.ai_models.soviet;
     }
   }
-  if (state.training) {
-    renderTraining(state.training);
-  }
   syncingAi = false;
 }
 
@@ -107,6 +113,28 @@ function populateSelect(selectEl, checkpoints, selectedVal, defaultText, allowEm
   if (!selectEl) return;
   const prevVal = selectEl.value;
   const targetVal = (selectedVal !== undefined && selectedVal !== null) ? selectedVal : prevVal;
+  const validCheckpoints = (checkpoints || []).filter(Boolean);
+
+  const existingOptions = Array.from(selectEl.options);
+  const existingValues = existingOptions.map((o) => o.value);
+  const expectedValues = [];
+  if (allowEmpty) expectedValues.push("");
+  if (validCheckpoints.length > 0) {
+    expectedValues.push(...validCheckpoints);
+  } else if (!allowEmpty) {
+    expectedValues.push("");
+  }
+
+  const isSame = existingValues.length === expectedValues.length &&
+    existingValues.every((val, idx) => val === expectedValues[idx]);
+
+  if (isSame) {
+    if (document.activeElement !== selectEl && targetVal !== undefined && targetVal !== null && selectEl.value !== targetVal) {
+      selectEl.value = targetVal;
+    }
+    return;
+  }
+
   selectEl.innerHTML = "";
   if (allowEmpty) {
     const emptyOpt = document.createElement("option");
@@ -117,8 +145,8 @@ function populateSelect(selectEl, checkpoints, selectedVal, defaultText, allowEm
     }
     selectEl.appendChild(emptyOpt);
   }
-  if (checkpoints && checkpoints.length > 0) {
-    for (const cp of checkpoints) {
+  if (validCheckpoints.length > 0) {
+    for (const cp of validCheckpoints) {
       const opt = document.createElement("option");
       opt.value = cp;
       const stepCount = stepsMap && stepsMap[cp] !== undefined ? stepsMap[cp] : null;
@@ -134,6 +162,9 @@ function populateSelect(selectEl, checkpoints, selectedVal, defaultText, allowEm
     }
   } else if (!allowEmpty) {
     selectEl.innerHTML = `<option value="">${defaultText}</option>`;
+  }
+  if (targetVal !== undefined && targetVal !== null) {
+    selectEl.value = targetVal;
   }
 }
 
@@ -380,13 +411,15 @@ aiSovietEl.addEventListener("change", onAiToggle);
 modelSelectAxisEl.addEventListener("change", async () => {
   const selected = modelSelectAxisEl.value;
   if (!selected) return;
-  await api("/api/set_ai_type", { axis_model: selected });
+  const data = await api("/api/set_ai_type", { axis_model: selected });
+  if (data) applyState(data);
 });
 
 modelSelectSovietEl.addEventListener("change", async () => {
   const selected = modelSelectSovietEl.value;
   if (!selected) return;
-  await api("/api/set_ai_type", { soviet_model: selected });
+  const data = await api("/api/set_ai_type", { soviet_model: selected });
+  if (data) applyState(data);
 });
 
 document.querySelectorAll('input[name="ai-type-axis"], input[name="ai-type-soviet"]').forEach((radio) => {
@@ -394,12 +427,13 @@ document.querySelectorAll('input[name="ai-type-axis"], input[name="ai-type-sovie
     const axisEl = document.querySelector('input[name="ai-type-axis"]:checked');
     const sovietEl = document.querySelector('input[name="ai-type-soviet"]:checked');
     if (!axisEl || !sovietEl) return;
-    await api("/api/set_ai_type", {
+    const data = await api("/api/set_ai_type", {
       axis: axisEl.value,
       soviet: sovietEl.value,
       axis_model: modelSelectAxisEl.value || undefined,
       soviet_model: modelSelectSovietEl.value || undefined,
     });
+    if (data) applyState(data);
   });
 });
 

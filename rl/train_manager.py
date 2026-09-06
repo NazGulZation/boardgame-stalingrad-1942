@@ -351,6 +351,9 @@ class TrainingManager:
             return self.active_checkpoint
         checkpoints = self.list_checkpoints()
         if checkpoints:
+            team_match = [c for c in checkpoints if team in c.lower()]
+            if team_match:
+                return team_match[0]
             return checkpoints[0]
         return None
 
