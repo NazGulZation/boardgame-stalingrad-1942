@@ -183,9 +183,17 @@ async function maybeRunAiTurn() {
   if (!state || state.winner || aiRunning) return;
   if (!state.ai || !state.ai[state.turn]) return;
   aiRunning = true;
+  const prevLogCount = (state.log || []).length;
   const data = await api("/api/ai_turn", {});
   aiRunning = false;
-  if (data) { clearSelection(); applyState(data); }
+  if (data) {
+    clearSelection();
+    const newLogs = (data.log || []).slice(prevLogCount);
+    if (window.SoundManager) {
+      window.SoundManager.playLogEvents(newLogs);
+    }
+    applyState(data);
+  }
 }
 
 function unitAt(x, y) {
@@ -219,22 +227,42 @@ async function onCellClick(x, y) {
   if (busy || !state || state.winner) return;
   if (moves.some((m) => m[0] === x && m[1] === y)) {
     busy = true;
+    const unit = selectedUnit();
+    const unitType = unit ? unit.type : null;
     const data = await api("/api/move", { unit_id: selectedId, x, y });
     busy = false;
-    if (data) { clearSelection(); applyState(data); }
+    if (data) {
+      if (window.SoundManager && unitType) {
+        window.SoundManager.playMove(unitType);
+      }
+      clearSelection();
+      applyState(data);
+    }
     return;
   }
   const clicked = unitAt(x, y);
   if (clicked && targets.includes(clicked.id)) {
     busy = true;
+    const attacker = selectedUnit();
+    const attackerType = attacker ? attacker.type : null;
     const data = await api("/api/attack", {
       attacker_id: selectedId, target_id: clicked.id,
     });
     busy = false;
-    if (data) { clearSelection(); applyState(data); }
+    if (data) {
+      if (window.SoundManager && attackerType) {
+        const targetAlive = data.units.some((u) => u.id === clicked.id && u.hp > 0);
+        window.SoundManager.playAttack(attackerType, !targetAlive);
+      }
+      clearSelection();
+      applyState(data);
+    }
     return;
   }
-  if (clicked && clicked.team === state.turn) select(clicked);
+  if (clicked && clicked.team === state.turn) {
+    if (window.SoundManager) window.SoundManager.playSelect();
+    select(clicked);
+  }
   else clearSelection();
   render();
 }
@@ -336,11 +364,18 @@ function renderLog() {
 }
 
 let overlayDismissed = false;
+let prevWinner = null;
 
 function renderOverlay() {
   if (!state.winner || overlayDismissed) {
     overlayEl.classList.add("hidden");
     return;
+  }
+  if (state.winner && prevWinner !== state.winner) {
+    prevWinner = state.winner;
+    if (window.SoundManager) {
+      window.SoundManager.playVictory();
+    }
   }
   overlayEl.classList.remove("hidden");
   const reason = state.log[state.log.length - 1] || "";
@@ -382,6 +417,7 @@ document.getElementById("btn-end-turn").addEventListener("click", async () => {
 
 async function resetGame() {
   overlayDismissed = false;
+  prevWinner = null;
   busy = true;
   const data = await api("/api/reset", {});
   busy = false;
@@ -437,6 +473,25 @@ document.querySelectorAll('input[name="ai-type-axis"], input[name="ai-type-sovie
   });
 });
 
+function initSoundControls() {
+  if (!window.SoundManager) return;
+  window.SoundManager.updateUi();
+  const btnSound = document.getElementById("btn-sound-toggle");
+  const volSlider = document.getElementById("sound-volume");
+  if (btnSound) {
+    btnSound.addEventListener("click", () => {
+      window.SoundManager.toggleMute();
+    });
+  }
+  if (volSlider) {
+    volSlider.addEventListener("input", (e) => {
+      window.SoundManager.setVolume(e.target.value / 100);
+    });
+  }
+}
+
+initSoundControls();
 setInterval(refresh, 2000);
 refresh();
+
 

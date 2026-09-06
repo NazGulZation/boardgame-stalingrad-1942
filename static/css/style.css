@@ -28,6 +28,42 @@ header {
   color: #fff;
 }
 
+.sound-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-sound {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.btn-sound:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.btn-sound.muted {
+  opacity: 0.6;
+}
+
+.sound-slider {
+  width: 70px;
+  height: 6px;
+  cursor: pointer;
+  accent-color: #e0e8f0;
+}
+
 header h1 {
   margin: 0;
   font-size: 22px;

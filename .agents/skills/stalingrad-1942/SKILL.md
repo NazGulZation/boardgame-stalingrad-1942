@@ -65,6 +65,8 @@ extend or refactor safely.
 | `static/css/style.css` | Layout + winter Stalingrad theme, 3-column responsive grid |
 | `static/css/training.css` | RL Training Hub styles, opponent pool checklist, custom step controls, badges |
 | `static/js/game.js` | Board rendering, click handling, `/api/*` calls, 2.0s state polling, AI auto-play, overlay |
+| `static/js/audio.js` | SoundManager: unit-specific move/attack SFX, volume/mute state, log event playback |
+| `static/audio/` | Web-optimized WWII audio assets (rifle, sniper, tank move/attack, destroyed, select, victory) |
 | `static/js/training_hub.js` | RL Training Hub UI controller, opponent pool checklist sync, subprocess status polling |
 | `static/js/training_graph.js` | Interactive HTML5 Canvas reward trend graph, N-steps windowing, hover crosshairs, 5s live polling |
 | `test_board.py` | Board/terrain/movement tests (17) |

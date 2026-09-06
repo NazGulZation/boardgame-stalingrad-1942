@@ -11,6 +11,10 @@
   <header>
     <h1>Stalingrad 1942</h1>
     <div id="banner" class="banner axis">Loading...</div>
+    <div class="sound-controls" id="sound-controls">
+      <button id="btn-sound-toggle" class="btn-sound" title="Toggle Sound (Mute/Unmute)" aria-label="Toggle Sound">🔊</button>
+      <input type="range" id="sound-volume" class="sound-slider" min="0" max="100" value="75" title="Volume">
+    </div>
   </header>
   <div id="message" class="hidden"></div>
   <main>
@@ -238,6 +242,7 @@
   </div>
   <script src="{{ url_for('static', filename='js/training_graph.js') }}"></script>
   <script src="{{ url_for('static', filename='js/training_hub.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/audio.js') }}"></script>
   <script src="{{ url_for('static', filename='js/game.js') }}"></script>
 </body>
 </html>
