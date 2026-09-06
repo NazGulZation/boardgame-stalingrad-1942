@@ -318,14 +318,22 @@ class TrainingManager:
         return steps_dict
 
     def list_checkpoints(self):
-        """Return list of saved checkpoint filenames."""
+        """Return list of saved checkpoint filenames, last trained first."""
         if not os.path.isdir(self.checkpoints_dir):
             return []
         files = [
             f for f in os.listdir(self.checkpoints_dir)
             if f.endswith(".pt")
         ]
-        files.sort(reverse=True)
+        # Most recently trained (saved) first; name descending as tie-breaker
+        # so the order is deterministic for identical modification times.
+        files.sort(
+            key=lambda f: (
+                os.path.getmtime(os.path.join(self.checkpoints_dir, f)),
+                f,
+            ),
+            reverse=True,
+        )
         return files
 
     def set_team_checkpoint(self, team, filename):

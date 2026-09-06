@@ -385,6 +385,25 @@ class TestTrainingEndpoints(AppTestBase):
                 idx = cmd.index("--opponents")
                 self.assertEqual(cmd[idx + 1], "heuristic,model_a.pt,model_b.pt")
 
+    def test_list_checkpoints_orders_by_last_trained(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from rl.train_manager import TrainingManager
+            tm = TrainingManager(checkpoints_dir=tmpdir)
+            self.assertEqual(tm.list_checkpoints(), [])
+            # Alphabetical order deliberately contradicts training recency:
+            # "soviet_v1" sorts last alphabetically but was trained first.
+            older = os.path.join(tmpdir, "stalingrad_soviet_v1.pt")
+            newer = os.path.join(tmpdir, "stalingrad_axis_v9.pt")
+            for path, mtime in ((older, 1000000000.0), (newer, 1500000000.0)):
+                with open(path, "w") as f:
+                    f.write("dummy")
+                os.utime(path, (mtime, mtime))
+            self.assertEqual(
+                tm.list_checkpoints(),
+                ["stalingrad_axis_v9.pt", "stalingrad_soviet_v1.pt"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
