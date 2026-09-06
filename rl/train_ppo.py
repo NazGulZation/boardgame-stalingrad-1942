@@ -100,6 +100,14 @@ def parse_args():
                         help="path to write live JSON status updates")
     parser.add_argument("--resume-checkpoint", type=str, default="",
                         help="path to existing checkpoint (.pt) to resume training from")
+    parser.add_argument("--train-side", type=str, default="axis", choices=["axis", "soviet"],
+                        help="the side to train from its perspective ('axis' or 'soviet')")
+    parser.add_argument("--opponent", type=str, default="heuristic", choices=["heuristic", "checkpoint", "self"],
+                        help="the opponent policy: 'heuristic', 'checkpoint', or 'self'")
+    parser.add_argument("--opponent-checkpoint", type=str, default="",
+                        help="path to opponent model checkpoint if --opponent=checkpoint")
+    parser.add_argument("--min-lr", type=float, default=5e-5,
+                        help="minimum learning rate floor during annealing")
 
     args = parser.parse_args()
     args.batch_size = int(args.num_envs * args.num_steps)
@@ -127,8 +135,24 @@ def train():
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
     print(f"Using device: {device}")
 
+    # Opponent setup
+    if args.opponent == "heuristic":
+        opponent_policy = ai.play_turn
+    elif args.opponent == "checkpoint" and args.opponent_checkpoint:
+        opp_agent = RLAgent(args.opponent_checkpoint, device=device)
+        opponent_policy = opp_agent.play_turn
+    else:
+        opponent_policy = None
+
     # Environment setup
-    envs = [Stalingrad1v1Env(rng=random.Random(args.seed + i)) for i in range(args.num_envs)]
+    envs = [
+        Stalingrad1v1Env(
+            rng=random.Random(args.seed + i),
+            train_side=args.train_side,
+            opponent_policy=opponent_policy,
+            strict_turn_completion=True,
+        ) for i in range(args.num_envs)
+    ]
 
     # Agent setup
     agent = StalingradResNet().to(device)
@@ -190,7 +214,7 @@ def train():
         # Annealing the rate if instructed to do so.
         if args.anneal_lr:
             frac = 1.0 - (update - 1.0) / num_updates
-            lrnow = frac * args.learning_rate
+            lrnow = max(args.min_lr, frac * args.learning_rate)
             optimizer.param_groups[0]["lr"] = lrnow
 
         for step in range(0, args.num_steps):
@@ -324,11 +348,17 @@ def train():
         if global_step - last_eval_step >= args.eval_interval or update == num_updates:
             last_eval_step = global_step
             eval_agent = RLAgent(agent, device=device)
-            eval_res = evaluate_matchup(eval_agent, ai.play_turn, num_games=10)
-            last_win_rate = eval_res["axis_win_rate"]
-            writer.add_scalar("eval/axis_win_rate_vs_ai", last_win_rate, global_step)
+            if args.train_side == "axis":
+                eval_res = evaluate_matchup(eval_agent, ai.play_turn, num_games=10)
+                last_win_rate = eval_res["axis_win_rate"]
+                side_label = "Axis"
+            else:
+                eval_res = evaluate_matchup(ai.play_turn, eval_agent, num_games=10)
+                last_win_rate = eval_res["soviet_wins"] / eval_res["games"]
+                side_label = "Soviet"
+            writer.add_scalar(f"eval/{args.train_side}_win_rate_vs_ai", last_win_rate, global_step)
             writer.add_scalar("eval/avg_rounds", eval_res["avg_rounds"], global_step)
-            print(f"--- Eval @ step {global_step}: Axis Win Rate vs Heuristic AI: {last_win_rate*100:.1f}% | Avg Rounds: {eval_res['avg_rounds']:.1f} ---")
+            print(f"--- Eval @ step {global_step}: {side_label} Win Rate vs Heuristic AI: {last_win_rate*100:.1f}% | Avg Rounds: {eval_res['avg_rounds']:.1f} ---")
 
         # Write live progress to status file
         resumed_name = os.path.basename(args.resume_checkpoint) if args.resume_checkpoint else None
@@ -343,6 +373,8 @@ def train():
             "win_rate": round(last_win_rate * 100, 1),
             "elapsed": round(time.time() - start_time, 1),
             "device": str(device),
+            "train_side": args.train_side,
+            "opponent": args.opponent,
             "resumed_from": resumed_name,
         }
         write_status(args.status_file, status_data)

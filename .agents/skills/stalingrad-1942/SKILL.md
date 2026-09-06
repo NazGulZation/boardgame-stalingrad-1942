@@ -40,11 +40,11 @@ extend or refactor safely.
   Hot-seat + AI options + live web-based RL Training Hub in the sidebar.
 - Run tests:
   `C:\Anaconda\envs\stalingrad-rl\python.exe -m unittest discover -s . -p "test_*.py"`
-  (All 116 tests must pass).
+  (All 122 tests must pass).
 - Size budget:
   `C:\Anaconda\python.exe .agents\skills\stalingrad-1942\scripts\check_file_sizes.py`
 - Train RL model directly:
-  `C:\Anaconda\envs\stalingrad-rl\python.exe rl/train_ppo.py --total-timesteps 50000 --num-envs 4`
+  `C:\Anaconda\envs\stalingrad-rl\python.exe rl/train_ppo.py --total-timesteps 50000 --num-envs 4 --train-side axis --opponent heuristic`
   (Optionally `--resume-checkpoint checkpoints/<model>.pt` to continue training).
 
 ## Project map
@@ -58,7 +58,7 @@ extend or refactor safely.
 | `app.py` | Thin Flask controller: routes, global `GAME`, `ValueError` -> HTTP 400, AI & training endpoints |
 | `rl/stalingrad_env.py` | 1v1 Gym environment, (15, 10, 12) spatial tensor observation, 897 discrete action space with action masking |
 | `rl/models.py` | ResNet Actor-Critic architecture and `CategoricalMasked` distribution |
-| `rl/train_ppo.py` | CleanRL single-file Maskable PPO training loop with GAE, self-play, resume support, and status JSON reporting |
+| `rl/train_ppo.py` | CleanRL single-file Maskable PPO training loop with GAE, single-sided perspective training, resume support, and status JSON reporting |
 | `rl/agent.py` | `RLAgent` inference wrapper matching `ai.play_turn`, plus head-to-head evaluation utilities |
 | `rl/train_manager.py` | Non-blocking background subprocess training manager, multi-agent cache, status tracker, and model loader |
 | `templates/index.html` | Board page shell (balanced 3-column dashboard, overlay, buttons, per-team AI controls, RL Training Hub) |
@@ -67,9 +67,9 @@ extend or refactor safely.
 | `test_board.py` | Board/terrain/movement tests (14) |
 | `test_units.py` | Unit stats + combat tests (12) |
 | `test_game.py` | Rules/turn/victory/reinforcement + golden scenario (31) |
-| `test_app.py` | Flask API integration + regression cycle + AI & training endpoints (25) |
+| `test_app.py` | Flask API integration + regression cycle + AI & training endpoints (26) |
 | `test_ai.py` | AI combat/positioning/turn-flow + full seeded battles (11) |
-| `test_rl.py` | RL observation encoding, action masking, step execution, and model forward pass tests (13) |
+| `test_rl.py` | RL observation encoding, action masking, step execution, and model forward pass tests (16) |
 
 ## Common tasks
 

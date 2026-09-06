@@ -21,6 +21,11 @@ tests). Add fields, don't rename.
 | POST | `/api/set_ai` | `{"axis": true, "soviet": false}` | full state (new game) |
 | POST | `/api/ai_turn` | `{}` | full state |
 | POST | `/api/reset` | `{}` | full state (new game) |
+| GET | `/api/training/status` | — | training telemetry, SPS, losses, checkpoints |
+| POST | `/api/training/start` | `{"total_timesteps": 20000, "train_side": "axis"|"soviet", "opponent": "heuristic"|"checkpoint", "opponent_checkpoint": str|null}` | start response + training status |
+| POST | `/api/training/stop` | `{}` | stop response + training status |
+| POST | `/api/training/select_model` | `{"model": "stalingrad_1v1_ppo_final.pt"}` | updated training status |
+| POST | `/api/set_ai_type` | `{"axis": "heuristic"|"rl", "soviet": "heuristic"|"rl", "axis_model": str, "soviet_model": str}` | full state |
 
 ### Errors
 

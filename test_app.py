@@ -221,6 +221,21 @@ class TestTrainingEndpoints(AppTestBase):
         mock_start.assert_called_once()
         self.assertEqual(mock_start.call_args[1]["total_timesteps"], 35000)
 
+    @mock.patch.object(app_module.TRAINING_MANAGER, "start_training", return_value=(True, "started"))
+    def test_training_start_with_side_and_opponent(self, mock_start):
+        res = self.client.post("/api/training/start", json={
+            "total_timesteps": 20000,
+            "train_side": "soviet",
+            "opponent": "checkpoint",
+            "opponent_checkpoint": "stalingrad_1v1_ppo_final.pt",
+        })
+        self.assertEqual(res.status_code, 200)
+        mock_start.assert_called_once()
+        kwargs = mock_start.call_args[1]
+        self.assertEqual(kwargs["train_side"], "soviet")
+        self.assertEqual(kwargs["opponent"], "checkpoint")
+        self.assertEqual(kwargs["opponent_checkpoint"], "stalingrad_1v1_ppo_final.pt")
+
     def test_set_ai_type(self):
         res = self.client.post("/api/set_ai_type", json={"axis": "rl", "soviet": "heuristic"})
         self.assertEqual(res.status_code, 200)

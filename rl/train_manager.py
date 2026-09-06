@@ -34,7 +34,7 @@ class TrainingManager:
             return CONDA_RL_PYTHON
         return sys.executable
 
-    def start_training(self, total_timesteps=10000, num_envs=4, lr=2.5e-4, resume_checkpoint=None):
+    def start_training(self, total_timesteps=10000, num_envs=4, lr=2.5e-4, resume_checkpoint=None, train_side="axis", opponent="heuristic", opponent_checkpoint=None):
         """Start PPO training in a background subprocess."""
         if self.is_running():
             return False, "Training is already in progress."
@@ -48,7 +48,16 @@ class TrainingManager:
             "--learning-rate", str(float(lr)),
             "--status-file", self.status_file,
             "--save-dir", self.checkpoints_dir,
+            "--train-side", str(train_side),
+            "--opponent", str(opponent),
         ]
+
+        if opponent == "checkpoint" and opponent_checkpoint:
+            opp_path = os.path.join(self.checkpoints_dir, opponent_checkpoint)
+            if not os.path.isfile(opp_path) and os.path.isfile(opponent_checkpoint):
+                opp_path = opponent_checkpoint
+            if os.path.isfile(opp_path):
+                cmd.extend(["--opponent-checkpoint", opp_path])
 
         if resume_checkpoint:
             resume_path = os.path.join(self.checkpoints_dir, resume_checkpoint)
@@ -68,6 +77,9 @@ class TrainingManager:
             "value_loss": 0.0,
             "win_rate": 0.0,
             "elapsed": 0.0,
+            "train_side": train_side,
+            "opponent": opponent,
+            "opponent_checkpoint": opponent_checkpoint,
             "resumed_from": resume_checkpoint if resume_checkpoint else None,
         }
         with open(self.status_file, "w") as f:

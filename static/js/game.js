@@ -24,6 +24,10 @@ const modelSelectAxisEl = document.getElementById("model-select-axis");
 const modelSelectSovietEl = document.getElementById("model-select-soviet");
 const wrapModelAxisEl = document.getElementById("wrap-model-axis");
 const wrapModelSovietEl = document.getElementById("wrap-model-soviet");
+const trainSideSelectEl = document.getElementById("train-side-select");
+const trainOpponentSelectEl = document.getElementById("train-opponent-select");
+const wrapOpponentCheckpointEl = document.getElementById("wrap-opponent-checkpoint");
+const trainOppModelSelectEl = document.getElementById("train-opp-model-select");
 const trainResumeSelectEl = document.getElementById("train-resume-select");
 const trainResumeInfoEl = document.getElementById("train-resume-info");
 const trainResumeStepsEl = document.getElementById("train-resume-steps");
@@ -177,6 +181,9 @@ function renderTraining(t) {
   const isRunning = !!t.is_running || statusStr === "training";
   btnTrainStartEl.disabled = isRunning;
   btnTrainStopEl.disabled = !isRunning;
+  if (trainSideSelectEl) trainSideSelectEl.disabled = isRunning;
+  if (trainOpponentSelectEl) trainOpponentSelectEl.disabled = isRunning;
+  if (trainOppModelSelectEl) trainOppModelSelectEl.disabled = isRunning;
   if (trainStepsEl) trainStepsEl.disabled = isRunning;
   if (trainStepsCustomEl) trainStepsCustomEl.disabled = isRunning;
   if (trainResumeSelectEl) trainResumeSelectEl.disabled = isRunning;
@@ -201,6 +208,9 @@ function renderTraining(t) {
   populateSelect(modelSelectAxisEl, t.checkpoints, axisCurrent, "No checkpoint available", false, checkpointSteps);
   populateSelect(modelSelectSovietEl, t.checkpoints, sovietCurrent, "No checkpoint available", false, checkpointSteps);
   populateSelect(trainResumeSelectEl, t.checkpoints, trainResumeSelectEl.value, "Start from scratch (New model)", true, checkpointSteps);
+  if (trainOppModelSelectEl) {
+    populateSelect(trainOppModelSelectEl, t.checkpoints, trainOppModelSelectEl.value, "No checkpoint available", false, checkpointSteps);
+  }
   updateResumeStepInfo();
 }
 
@@ -451,6 +461,16 @@ if (trainStepsEl && wrapCustomStepsEl) {
   });
 }
 
+if (trainOpponentSelectEl && wrapOpponentCheckpointEl) {
+  trainOpponentSelectEl.addEventListener("change", () => {
+    if (trainOpponentSelectEl.value === "checkpoint") {
+      wrapOpponentCheckpointEl.classList.remove("hidden");
+    } else {
+      wrapOpponentCheckpointEl.classList.add("hidden");
+    }
+  });
+}
+
 btnTrainStartEl.addEventListener("click", async () => {
   let steps;
   if (trainStepsEl && trainStepsEl.value === "custom") {
@@ -469,19 +489,36 @@ btnTrainStartEl.addEventListener("click", async () => {
     steps = parseInt(trainStepsEl ? trainStepsEl.value : "20000", 10) || 20000;
   }
 
+  const trainSide = trainSideSelectEl ? trainSideSelectEl.value : "axis";
+  const opponent = trainOpponentSelectEl ? trainOpponentSelectEl.value : "heuristic";
+  const oppCheckpoint = (opponent === "checkpoint" && trainOppModelSelectEl) ? trainOppModelSelectEl.value || null : null;
+
+  if (opponent === "checkpoint" && !oppCheckpoint) {
+    showMessage("Please select an opponent model checkpoint.");
+    if (trainOppModelSelectEl) trainOppModelSelectEl.focus();
+    btnTrainStartEl.disabled = false;
+    return;
+  }
+
   const resumeCp = trainResumeSelectEl.value || null;
   btnTrainStartEl.disabled = true;
+  const sideLabel = trainSide === "axis" ? "Axis (Nazi)" : "Soviet";
+  const oppLabel = opponent === "checkpoint" ? `Checkpoint (${oppCheckpoint})` : "Normal AI";
+
   if (resumeCp) {
     const priorSteps = checkpointSteps[resumeCp];
     const stepText = (priorSteps !== undefined && priorSteps !== null) ? ` (${priorSteps.toLocaleString()} steps already done)` : "";
-    showMessage(`Resuming training from ${resumeCp}${stepText} for ${steps.toLocaleString()} steps on GPU...`);
+    showMessage(`Resuming ${sideLabel} training vs ${oppLabel} from ${resumeCp}${stepText} for ${steps.toLocaleString()} steps on GPU...`);
   } else {
-    showMessage(`Launching RL training (${steps.toLocaleString()} steps) from scratch on GPU...`);
+    showMessage(`Launching ${sideLabel} training vs ${oppLabel} (${steps.toLocaleString()} steps) from scratch on GPU...`);
   }
   const res = await api("/api/training/start", {
     total_timesteps: steps,
     num_envs: 4,
     resume_checkpoint: resumeCp,
+    train_side: trainSide,
+    opponent: opponent,
+    opponent_checkpoint: oppCheckpoint,
   });
   if (res && res.training) renderTraining(res.training);
 });

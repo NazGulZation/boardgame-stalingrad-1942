@@ -38,7 +38,7 @@ class RLAgent:
 
         self.model.eval()
 
-    def play_turn(self, game, team, deterministic=True):
+    def play_turn(self, game, team, deterministic=True, strict_turn_completion=True):
         """Play one side's entire turn through the game engine.
 
         Returns list of executed action tuples, matching ai.play_turn:
@@ -55,7 +55,7 @@ class RLAgent:
                 break
 
             obs = encode_observation(game, team)
-            mask = get_action_mask(game, team)
+            mask = get_action_mask(game, team, strict_turn_completion=strict_turn_completion)
 
             obs_t = torch.tensor(obs, dtype=torch.float32, device=self.device).unsqueeze(0)
             mask_t = torch.tensor(mask, dtype=torch.bool, device=self.device).unsqueeze(0)

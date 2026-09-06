@@ -147,12 +147,18 @@ def training_start():
     num_envs = data.get("num_envs", 4)
     lr = data.get("learning_rate", 2.5e-4)
     resume_checkpoint = data.get("resume_checkpoint")
+    train_side = data.get("train_side", "axis")
+    opponent = data.get("opponent", "heuristic")
+    opponent_checkpoint = data.get("opponent_checkpoint")
 
     success, message = TRAINING_MANAGER.start_training(
         total_timesteps=total_timesteps,
         num_envs=num_envs,
         lr=lr,
         resume_checkpoint=resume_checkpoint,
+        train_side=train_side,
+        opponent=opponent,
+        opponent_checkpoint=opponent_checkpoint,
     )
     if not success:
         return jsonify({"error": message}), 400

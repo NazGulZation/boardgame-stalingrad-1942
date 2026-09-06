@@ -86,6 +86,26 @@
         </div>
         <div class="train-controls">
           <div class="input-row">
+            <label for="train-side-select">Train Side:</label>
+            <select id="train-side-select">
+              <option value="axis" selected>Axis (Nazi)</option>
+              <option value="soviet">Soviet (62nd Army)</option>
+            </select>
+          </div>
+          <div class="input-row">
+            <label for="train-opponent-select">Opponent:</label>
+            <select id="train-opponent-select">
+              <option value="heuristic" selected>Normal AI (Heuristic)</option>
+              <option value="checkpoint">Model Checkpoint...</option>
+            </select>
+          </div>
+          <div class="input-row hidden" id="wrap-opponent-checkpoint">
+            <label for="train-opp-model-select">Opponent Model:</label>
+            <select id="train-opp-model-select">
+              <option value="">Select checkpoint...</option>
+            </select>
+          </div>
+          <div class="input-row">
             <label for="train-steps">Timesteps:</label>
             <select id="train-steps">
               <option value="5000">5,000 steps (Quick)</option>

@@ -37,7 +37,7 @@ single micro-action from an 897-element discrete space:
 
 $$\text{Action Space Size} = 1 + (\text{NUM\_UNIT\_SLOTS} \times 128) = 1 + (7 \times 128) = 897$$
 
-* **Action `0`**: `END_TURN` (always legal, mask = 1).
+* **Action `0`**: `END_TURN`.
 * **For friendly unit slot $u \in [0..6]$**:
   * Offset base: $1 + u \times 128$
   * `base + 0`: **Pass / Hold Unit** (marks unit done for turn).
@@ -45,9 +45,12 @@ $$\text{Action Space Size} = 1 + (\text{NUM\_UNIT\_SLOTS} \times 128) = 1 + (7 \
   * `base + 121 .. base + 127`: **Attack Enemy** slot $e \in [0..6]$.
 
 ### Action Masking
-`get_action_mask(game, team)` queries `game.legal_moves()` and `game.attackable()`.
+`get_action_mask(game, team, strict_turn_completion=False)` queries `game.legal_moves()` and `game.attackable()`.
 Illegal actions receive $-\infty$ logits inside the PyTorch `CategoricalMasked`
 distribution, guaranteeing zero invalid action attempts during sampling.
+* In permissive mode (`strict_turn_completion=False`), `END_TURN` is always legal.
+* In strict mode (`strict_turn_completion=True`, used in training and `RLAgent`),
+  `END_TURN` is masked out until all ready units have moved, attacked, or explicitly passed.
 
 ---
 
@@ -69,8 +72,11 @@ distribution, guaranteeing zero invalid action attempts during sampling.
 
 * **Framework**: CleanRL-style single-file Maskable PPO.
 * **Algorithm**: Actor-Critic with Generalized Advantage Estimation ($\lambda=0.95, \gamma=0.99$).
-* **Self-Play**: Shared network evaluates from the perspective of the active team.
-* **Evaluation**: Evaluates 10 games vs the heuristic AI in `ai.py` every $N$ steps.
+* **Single-Sided Perspective**: Trains from the perspective of one army (`--train-side axis` or `soviet`).
+  When the agent ends its turn, the opponent (`--opponent heuristic` or `checkpoint`) automatically plays.
+  Opponent counter-attack damage and losses are folded into the transition reward, eliminating zero-sum GAE sign corruption.
+* **Learning Rate Clamp**: `--min-lr 5e-5` prevents learning rates from flatlining to zero during annealing.
+* **Evaluation**: Evaluates 10 games vs the heuristic AI in `ai.py` every $N$ steps from the trained side's perspective.
 * **Telemetry**: Atomically writes live progress, SPS, losses, and win rate to `checkpoints/train_status.json`.
 
 ---
@@ -83,7 +89,7 @@ distribution, guaranteeing zero invalid action attempts during sampling.
 
 ### HTTP Endpoints
 * `GET /api/training/status`: Returns current status, step, SPS, losses, available checkpoints, and checkpoint_steps completed.
-* `POST /api/training/start`: Starts training with `{ total_timesteps, num_envs, learning_rate }`.
+* `POST /api/training/start`: Starts training with `{ total_timesteps, num_envs, learning_rate, train_side, opponent, opponent_checkpoint, resume_checkpoint }`.
 * `POST /api/training/stop`: Gracefully terminates the running process.
 * `POST /api/training/select_model`: Selects active checkpoint for gameplay `{ model }`.
 * `POST /api/set_ai_type`: Configures `{ axis: "heuristic"|"rl", soviet: "heuristic"|"rl" }`.

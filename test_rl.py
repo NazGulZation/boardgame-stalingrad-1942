@@ -8,6 +8,7 @@ import unittest
 import numpy as np
 
 import board
+import ai
 from game import Game
 from rl.stalingrad_env import (
     Stalingrad1v1Env,
@@ -154,6 +155,22 @@ class TestRLActionMasking(unittest.TestCase):
         self.assertEqual(uid, "u1")
         self.assertEqual(target_id, "u7")
 
+    def test_strict_turn_completion_masking(self):
+        # With ready units having legal moves, ACTION_END_TURN should be False in strict mode
+        mask_permissive = get_action_mask(self.game, "axis", strict_turn_completion=False)
+        self.assertTrue(mask_permissive[ACTION_END_TURN])
+
+        mask_strict = get_action_mask(self.game, "axis", strict_turn_completion=True)
+        self.assertFalse(mask_strict[ACTION_END_TURN])
+
+        # Mark all friendly units moved and attacked (as if passed or acted)
+        for u in self.game.units.values():
+            if u.team == "axis":
+                u.moved = True
+                u.attacked = True
+
+        mask_done = get_action_mask(self.game, "axis", strict_turn_completion=True)
+        self.assertTrue(mask_done[ACTION_END_TURN])
 
 
 class TestRLEnvironment(unittest.TestCase):
@@ -182,6 +199,29 @@ class TestRLEnvironment(unittest.TestCase):
         obs, reward, terminated, truncated, info = env.step(ACTION_END_TURN)
         self.assertEqual(env.game.turn, "soviet")
         self.assertEqual(info["turn"], "soviet")
+
+    def test_env_single_sided_axis_vs_ai(self):
+        env = Stalingrad1v1Env(rng=random.Random(42), train_side="axis",
+                               opponent_policy=ai.play_turn, strict_turn_completion=False)
+        obs, info = env.reset()
+        self.assertEqual(info["turn"], "axis")
+        self.assertEqual(info["round"], 1)
+
+        # Agent ends turn -> AI automatically plays Soviet turn
+        obs, reward, terminated, truncated, info = env.step(ACTION_END_TURN)
+        # Turn cycles back to axis in round 2 (unless battle ended)
+        if not terminated:
+            self.assertEqual(env.game.turn, "axis")
+            self.assertEqual(env.game.round, 2)
+
+    def test_env_single_sided_soviet_vs_ai(self):
+        env = Stalingrad1v1Env(rng=random.Random(42), train_side="soviet",
+                               opponent_policy=ai.play_turn, strict_turn_completion=False)
+        obs, info = env.reset()
+        # Axis plays first turn automatically during reset
+        self.assertEqual(env.game.turn, "soviet")
+        self.assertEqual(info["turn"], "soviet")
+        self.assertEqual(env.game.round, 1)
 
 
 @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch required for model tests")
