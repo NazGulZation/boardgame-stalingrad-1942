@@ -40,7 +40,7 @@ extend or refactor safely.
   Hot-seat + AI options + live web-based RL Training Hub in the sidebar.
 - Run tests:
   `C:\Anaconda\envs\stalingrad-rl\python.exe -m unittest discover -s . -p "test_*.py"`
-  (All 122 tests must pass).
+  (All 130 tests must pass).
 - Size budget:
   `C:\Anaconda\python.exe .agents\skills\stalingrad-1942\scripts\check_file_sizes.py`
 - Train RL model directly:
@@ -64,12 +64,13 @@ extend or refactor safely.
 | `templates/index.html` | Board page shell (balanced 3-column dashboard, overlay, buttons, per-team AI controls, RL Training Hub) |
 | `static/css/style.css` | Layout + winter Stalingrad theme, 3-column responsive grid, training dashboard styles |
 | `static/js/game.js` | Rendering, click handling, `/api/*` calls, 2.0s state polling, AI auto-play, training UI sync |
+| `static/js/training_graph.js` | Interactive HTML5 Canvas reward trend graph, N-steps windowing, hover crosshairs, 5s live polling |
 | `test_board.py` | Board/terrain/movement tests (14) |
 | `test_units.py` | Unit stats + combat tests (12) |
 | `test_game.py` | Rules/turn/victory/reinforcement + golden scenario (31) |
-| `test_app.py` | Flask API integration + regression cycle + AI & training endpoints (26) |
+| `test_app.py` | Flask API integration + regression cycle + AI & training endpoints (28) |
 | `test_ai.py` | AI combat/positioning/turn-flow + full seeded battles (11) |
-| `test_rl.py` | RL observation encoding, action masking, step execution, and model forward pass tests (16) |
+| `test_rl.py` | RL observation encoding, action masking, step execution, and model forward pass tests (18) |
 
 ## Common tasks
 

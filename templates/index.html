@@ -128,6 +128,20 @@
             <span class="resume-info-label">Checkpoint history:</span>
             <span id="train-resume-steps" class="resume-info-val">Fresh start (0 prior steps)</span>
           </div>
+          <div class="input-row" id="wrap-parallel-play">
+            <label for="train-parallel-select">Parallel Play:</label>
+            <select id="train-parallel-select" title="Run multiple parallel games to speed up training at the cost of higher CPU/RAM usage">
+              <option value="1">1 game (Sequential - Low Resource)</option>
+              <option value="2">2 games (Light Parallel)</option>
+              <option value="4" selected>4 games (Standard - Balanced)</option>
+              <option value="8">8 games (Fast - High Resource)</option>
+              <option value="16">16 games (Ultra - Max Resource)</option>
+            </select>
+          </div>
+          <div class="input-row" id="wrap-model-name">
+            <label for="train-model-name">Model Name:</label>
+            <input type="text" id="train-model-name" placeholder="e.g. axis_v1 (optional)" maxlength="40">
+          </div>
           <div class="train-btn-row">
             <button id="btn-train-start" class="btn-primary">Start Training</button>
             <button id="btn-train-stop" class="btn-secondary" disabled>Stop</button>
@@ -147,6 +161,10 @@
               <span id="train-win-rate" class="stat-val">--%</span>
             </div>
             <div class="stat-card">
+              <span class="stat-label">Reward</span>
+              <span id="train-reward" class="stat-val">--</span>
+            </div>
+            <div class="stat-card">
               <span class="stat-label">Policy Loss</span>
               <span id="train-policy-loss" class="stat-val">--</span>
             </div>
@@ -157,6 +175,30 @@
             <div class="stat-card">
               <span class="stat-label">Elapsed</span>
               <span id="train-elapsed" class="stat-val">0s</span>
+            </div>
+          </div>
+          <div id="reward-graph-card" class="reward-graph-card">
+            <div class="reward-graph-header">
+              <span class="reward-graph-title">Reward Trend</span>
+              <div class="reward-graph-controls">
+                <label for="reward-graph-window">Show:</label>
+                <select id="reward-graph-window" class="reward-window-select">
+                  <option value="1000">Last 1k</option>
+                  <option value="2500">Last 2.5k</option>
+                  <option value="5000" selected>Last 5k</option>
+                  <option value="10000">Last 10k</option>
+                  <option value="20000">Last 20k</option>
+                  <option value="all">All steps</option>
+                </select>
+              </div>
+            </div>
+            <div class="reward-canvas-wrap">
+              <canvas id="reward-canvas" width="280" height="130"></canvas>
+              <div id="reward-tooltip" class="reward-tooltip hidden"></div>
+            </div>
+            <div class="reward-graph-footer">
+              <span id="reward-hover-readout">Hover graph to inspect step reward</span>
+              <span class="reward-badge">5s auto-update</span>
             </div>
           </div>
         </div>
@@ -174,6 +216,7 @@
       </div>
     </div>
   </div>
+  <script src="{{ url_for('static', filename='js/training_graph.js') }}"></script>
   <script src="{{ url_for('static', filename='js/game.js') }}"></script>
 </body>
 </html>

@@ -6,6 +6,7 @@ checkpoint scanning, and cached RLAgent inference for the web app.
 
 import os
 import sys
+import re
 import json
 import subprocess
 import time
@@ -27,6 +28,15 @@ class TrainingManager:
         self.metadata_file = os.path.join(checkpoints_dir, "checkpoints_meta.json")
         self._checkpoint_steps_cache = {}
         self._agent_cache = {}
+        self._last_completed_checkpoint = None
+        if os.path.isfile(self.status_file):
+            try:
+                with open(self.status_file, "r") as f:
+                    s = json.load(f)
+                    if s.get("status") == "completed" and s.get("latest_checkpoint"):
+                        self._last_completed_checkpoint = os.path.basename(s["latest_checkpoint"])
+            except Exception:
+                pass
         os.makedirs(checkpoints_dir, exist_ok=True)
 
     def _get_python_exe(self):
@@ -34,10 +44,40 @@ class TrainingManager:
             return CONDA_RL_PYTHON
         return sys.executable
 
-    def start_training(self, total_timesteps=10000, num_envs=4, lr=2.5e-4, resume_checkpoint=None, train_side="axis", opponent="heuristic", opponent_checkpoint=None):
+    def _generate_default_model_name(self, side="axis"):
+        """Generate a sequential default model name like stalingrad_axis_v1.pt."""
+        prefix = f"stalingrad_{side}_v"
+        existing = os.listdir(self.checkpoints_dir) if os.path.isdir(self.checkpoints_dir) else []
+        versions = []
+        for f in existing:
+            if f.startswith(prefix) and f.endswith(".pt"):
+                v_str = f[len(prefix):-3]
+                if v_str.isdigit():
+                    versions.append(int(v_str))
+        next_v = max(versions, default=0) + 1
+        return f"{prefix}{next_v}.pt"
+
+    def start_training(self, total_timesteps=10000, num_envs=4, lr=2.5e-4, resume_checkpoint=None, train_side="axis", opponent="heuristic", opponent_checkpoint=None, model_name=None):
         """Start PPO training in a background subprocess."""
         if self.is_running():
             return False, "Training is already in progress."
+
+        self._last_completed_checkpoint = None
+        target_model = None
+        if model_name and str(model_name).strip():
+            raw_name = str(model_name).strip()
+            clean_name = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', raw_name)
+            if not clean_name.endswith(".pt"):
+                clean_name = f"{clean_name}.pt"
+            clean_name = os.path.basename(clean_name)
+            if clean_name != ".pt":
+                target_model = clean_name
+
+        if not target_model:
+            if resume_checkpoint:
+                target_model = os.path.basename(resume_checkpoint)
+            else:
+                target_model = self._generate_default_model_name(train_side)
 
         python_exe = self._get_python_exe()
         cmd = [
@@ -50,6 +90,7 @@ class TrainingManager:
             "--save-dir", self.checkpoints_dir,
             "--train-side", str(train_side),
             "--opponent", str(opponent),
+            "--model-name", target_model,
         ]
 
         if opponent == "checkpoint" and opponent_checkpoint:
@@ -81,6 +122,10 @@ class TrainingManager:
             "opponent": opponent,
             "opponent_checkpoint": opponent_checkpoint,
             "resumed_from": resume_checkpoint if resume_checkpoint else None,
+            "model_name": target_model,
+            "num_envs": int(num_envs),
+            "reward": 0.0,
+            "reward_history": [],
         }
         with open(self.status_file, "w") as f:
             json.dump(initial_status, f, indent=2)
@@ -142,6 +187,9 @@ class TrainingManager:
             "policy_loss": 0.0,
             "value_loss": 0.0,
             "win_rate": 0.0,
+            "reward": 0.0,
+            "reward_history": [],
+            "num_envs": 4,
             "elapsed": 0.0,
             "checkpoints": self.list_checkpoints(),
             "active_checkpoint": self.active_checkpoint,
@@ -158,6 +206,16 @@ class TrainingManager:
 
         if not running and status_data["status"] == "training":
             status_data["status"] = "completed"
+
+        latest_cp = status_data.get("latest_checkpoint")
+        if latest_cp and status_data.get("status") == "completed":
+            cp_base = os.path.basename(latest_cp)
+            if cp_base != self._last_completed_checkpoint:
+                self._last_completed_checkpoint = cp_base
+                side = status_data.get("train_side", "axis")
+                if side in ("axis", "soviet") and os.path.isfile(os.path.join(self.checkpoints_dir, cp_base)):
+                    self.set_team_checkpoint(side, cp_base)
+                    self._agent_cache.pop(cp_base, None)
 
         status_data["is_running"] = running
         status_data["checkpoints"] = self.list_checkpoints()

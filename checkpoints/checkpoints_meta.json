@@ -6,5 +6,12 @@
   "stalingrad_soviet_ppo_final.pt": {
     "total_steps": 1024,
     "timestamp": 1788660609
+  },
+  "stalingrad_axis_v2.pt": {
+    "total_steps": 4608
+  },
+  "stalingrad_axis_v1.pt": {
+    "total_steps": 172544,
+    "timestamp": 1788664048
   }
 }

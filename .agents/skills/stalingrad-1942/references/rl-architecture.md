@@ -76,8 +76,10 @@ distribution, guaranteeing zero invalid action attempts during sampling.
   When the agent ends its turn, the opponent (`--opponent heuristic` or `checkpoint`) automatically plays.
   Opponent counter-attack damage and losses are folded into the transition reward, eliminating zero-sum GAE sign corruption.
 * **Learning Rate Clamp**: `--min-lr 5e-5` prevents learning rates from flatlining to zero during annealing.
+* **Parallel Environments**: `--num-envs` configures 1 to 16 parallel game environments to scale rollout throughput and GPU batching (scaling from ~90 SPS up to ~500 SPS).
+* **Reward Telemetry & Graphing**: Tracks rollout mean and exponential moving average (EMA) reward at each update. Maintains `reward_history` coordinates for live 5-second polling and interactive HTML5 Canvas reward trend inspection in the web UI.
 * **Evaluation**: Evaluates 10 games vs the heuristic AI in `ai.py` every $N$ steps from the trained side's perspective.
-* **Telemetry**: Atomically writes live progress, SPS, losses, and win rate to `checkpoints/train_status.json`.
+* **Telemetry**: Atomically writes live progress, SPS, losses, win rate, reward, and reward history to `checkpoints/train_status.json`.
 
 ---
 

@@ -144,12 +144,16 @@ def training_status():
 def training_start():
     data = request.get_json(force=True, silent=True) or {}
     total_timesteps = data.get("total_timesteps", 10000)
-    num_envs = data.get("num_envs", 4)
+    try:
+        num_envs = max(1, min(32, int(data.get("num_envs", 4))))
+    except (TypeError, ValueError):
+        num_envs = 4
     lr = data.get("learning_rate", 2.5e-4)
     resume_checkpoint = data.get("resume_checkpoint")
     train_side = data.get("train_side", "axis")
     opponent = data.get("opponent", "heuristic")
     opponent_checkpoint = data.get("opponent_checkpoint")
+    model_name = data.get("model_name")
 
     success, message = TRAINING_MANAGER.start_training(
         total_timesteps=total_timesteps,
@@ -159,6 +163,7 @@ def training_start():
         train_side=train_side,
         opponent=opponent,
         opponent_checkpoint=opponent_checkpoint,
+        model_name=model_name,
     )
     if not success:
         return jsonify({"error": message}), 400

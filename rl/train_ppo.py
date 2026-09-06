@@ -106,6 +106,8 @@ def parse_args():
                         help="the opponent policy: 'heuristic', 'checkpoint', or 'self'")
     parser.add_argument("--opponent-checkpoint", type=str, default="",
                         help="path to opponent model checkpoint if --opponent=checkpoint")
+    parser.add_argument("--model-name", type=str, default="",
+                        help="custom output filename for the saved model checkpoint (e.g. 'my_model.pt')")
     parser.add_argument("--min-lr", type=float, default=5e-5,
                         help="minimum learning rate floor during annealing")
 
@@ -206,9 +208,11 @@ def train():
     next_done = torch.tensor(np.array(next_done_list), dtype=torch.float32).to(device)
     next_mask = torch.tensor(np.array(next_mask_list), dtype=torch.bool).to(device)
 
-    num_updates = args.total_timesteps // args.batch_size
+    num_updates = max(1, args.total_timesteps // args.batch_size)
     last_eval_step = 0
     last_win_rate = 0.0
+    reward_history = []
+    ema_reward = None
 
     for update in range(1, num_updates + 1):
         # Annealing the rate if instructed to do so.
@@ -333,8 +337,17 @@ def train():
                 nn.utils.clip_grad_norm_(agent.parameters(), args.max_grad_norm)
                 optimizer.step()
 
+        # Calculate rollout reward and EMA
+        rollout_mean_reward = float(rewards.mean().item())
+        ema_reward = rollout_mean_reward if ema_reward is None else 0.85 * ema_reward + 0.15 * rollout_mean_reward
+        reward_history.append([global_step, round(ema_reward, 4)])
+        if len(reward_history) > 2000:
+            reward_history = reward_history[-2000:]
+
         # Record metrics
         writer.add_scalar("charts/learning_rate", optimizer.param_groups[0]["lr"], global_step)
+        writer.add_scalar("charts/mean_reward", rollout_mean_reward, global_step)
+        writer.add_scalar("charts/ema_reward", ema_reward, global_step)
         writer.add_scalar("losses/value_loss", v_loss.item(), global_step)
         writer.add_scalar("losses/policy_loss", pg_loss.item(), global_step)
         writer.add_scalar("losses/entropy", entropy_loss.item(), global_step)
@@ -342,7 +355,7 @@ def train():
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
         if update % 5 == 0 or update == num_updates:
-            print(f"Update {update}/{num_updates} | Step {global_step} | SPS: {int(global_step / (time.time() - start_time))} | Policy Loss: {pg_loss.item():.4f} | Value Loss: {v_loss.item():.4f}")
+            print(f"Update {update}/{num_updates} | Step {global_step} | SPS: {int(global_step / (time.time() - start_time))} | Reward: {ema_reward:.4f} | Policy Loss: {pg_loss.item():.4f} | Value Loss: {v_loss.item():.4f}")
 
         # Periodic evaluation against heuristic AI
         if global_step - last_eval_step >= args.eval_interval or update == num_updates:
@@ -376,12 +389,21 @@ def train():
             "train_side": args.train_side,
             "opponent": args.opponent,
             "resumed_from": resumed_name,
+            "num_envs": args.num_envs,
+            "reward": round(ema_reward, 4),
+            "reward_history": reward_history,
         }
         write_status(args.status_file, status_data)
 
     # Save final model
     total_completed_steps = prior_steps + global_step
-    save_path = os.path.join(args.save_dir, f"{args.exp_name}_final.pt")
+    if args.model_name and args.model_name.strip():
+        model_fname = os.path.basename(args.model_name.strip())
+        if not model_fname.endswith(".pt"):
+            model_fname = f"{model_fname}.pt"
+        save_path = os.path.join(args.save_dir, model_fname)
+    else:
+        save_path = os.path.join(args.save_dir, f"{args.exp_name}_final.pt")
     torch.save({
         "model_state_dict": agent.state_dict(),
         "total_steps": total_completed_steps,

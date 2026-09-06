@@ -36,12 +36,16 @@ const trainStatusBadgeEl = document.getElementById("train-status-badge");
 const trainStepsEl = document.getElementById("train-steps");
 const trainStepsCustomEl = document.getElementById("train-steps-custom");
 const wrapCustomStepsEl = document.getElementById("wrap-custom-steps");
+const trainModelNameEl = document.getElementById("train-model-name");
+const trainParallelSelectEl = document.getElementById("train-parallel-select");
+let prevTrainStatus = "idle";
 const btnTrainStartEl = document.getElementById("btn-train-start");
 const btnTrainStopEl = document.getElementById("btn-train-stop");
 const trainProgressBarEl = document.getElementById("train-progress-bar");
 const trainProgressTextEl = document.getElementById("train-progress-text");
 const trainSpsTextEl = document.getElementById("train-sps-text");
 const trainWinRateEl = document.getElementById("train-win-rate");
+const trainRewardEl = document.getElementById("train-reward");
 const trainPolicyLossEl = document.getElementById("train-policy-loss");
 const trainValueLossEl = document.getElementById("train-value-loss");
 const trainElapsedEl = document.getElementById("train-elapsed");
@@ -128,11 +132,15 @@ function syncAiControls() {
 function populateSelect(selectEl, checkpoints, selectedVal, defaultText, allowEmpty, stepsMap) {
   if (!selectEl) return;
   const prevVal = selectEl.value;
+  const targetVal = (selectedVal !== undefined && selectedVal !== null) ? selectedVal : prevVal;
   selectEl.innerHTML = "";
   if (allowEmpty) {
     const emptyOpt = document.createElement("option");
     emptyOpt.value = "";
     emptyOpt.textContent = defaultText;
+    if (targetVal === "") {
+      emptyOpt.selected = true;
+    }
     selectEl.appendChild(emptyOpt);
   }
   if (checkpoints && checkpoints.length > 0) {
@@ -145,13 +153,25 @@ function populateSelect(selectEl, checkpoints, selectedVal, defaultText, allowEm
       } else {
         opt.textContent = cp;
       }
-      if (cp === selectedVal || (!selectedVal && cp === prevVal)) {
+      if (cp === targetVal) {
         opt.selected = true;
       }
       selectEl.appendChild(opt);
     }
   } else if (!allowEmpty) {
     selectEl.innerHTML = `<option value="">${defaultText}</option>`;
+  }
+}
+
+function updateModelNamePlaceholder() {
+  if (!trainModelNameEl) return;
+  const side = trainSideSelectEl ? trainSideSelectEl.value : "axis";
+  const isResume = trainResumeSelectEl && !!trainResumeSelectEl.value;
+  if (isResume) {
+    trainModelNameEl.placeholder = "e.g. overwrite or new name";
+  } else {
+    const prefix = side === "axis" ? "axis_v1" : "soviet_v1";
+    trainModelNameEl.placeholder = `e.g. ${prefix} (optional)`;
   }
 }
 
@@ -187,6 +207,8 @@ function renderTraining(t) {
   if (trainStepsEl) trainStepsEl.disabled = isRunning;
   if (trainStepsCustomEl) trainStepsCustomEl.disabled = isRunning;
   if (trainResumeSelectEl) trainResumeSelectEl.disabled = isRunning;
+  if (trainModelNameEl) trainModelNameEl.disabled = isRunning;
+  if (trainParallelSelectEl) trainParallelSelectEl.disabled = isRunning;
 
   const pct = Math.min(100, Math.max(0, t.progress || 0));
   trainProgressBarEl.style.width = pct + "%";
@@ -194,9 +216,18 @@ function renderTraining(t) {
   trainSpsTextEl.textContent = `${t.sps || 0} SPS`;
 
   trainWinRateEl.textContent = t.win_rate !== undefined && t.win_rate !== null ? `${t.win_rate}%` : "--%";
+  if (trainRewardEl) {
+    trainRewardEl.textContent = (t.reward !== undefined && t.reward !== null)
+      ? ((t.reward >= 0 ? "+" : "") + Number(t.reward).toFixed(3))
+      : "--";
+  }
   trainPolicyLossEl.textContent = t.policy_loss !== undefined && t.policy_loss !== null ? t.policy_loss : "--";
   trainValueLossEl.textContent = t.value_loss !== undefined && t.value_loss !== null ? t.value_loss : "--";
   trainElapsedEl.textContent = `${Math.round(t.elapsed || 0)}s`;
+
+  if (window.TrainingGraph && Array.isArray(t.reward_history)) {
+    window.TrainingGraph.setData(t.reward_history);
+  }
 
   if (t.checkpoint_steps) {
     checkpointSteps = Object.assign({}, checkpointSteps, t.checkpoint_steps);
@@ -212,6 +243,18 @@ function renderTraining(t) {
     populateSelect(trainOppModelSelectEl, t.checkpoints, trainOppModelSelectEl.value, "No checkpoint available", false, checkpointSteps);
   }
   updateResumeStepInfo();
+  updateModelNamePlaceholder();
+
+  if (prevTrainStatus === "training" && statusStr === "completed") {
+    const cpName = t.latest_checkpoint ? t.latest_checkpoint.split(/[\\/]/).pop() : (t.model_name || "checkpoint");
+    showMessage(`Training completed! New model saved: ${cpName}`);
+    if (trainResumeSelectEl && cpName) {
+      trainResumeSelectEl.value = cpName;
+      updateResumeStepInfo();
+      updateModelNamePlaceholder();
+    }
+  }
+  prevTrainStatus = statusStr;
 }
 
 
@@ -471,6 +514,19 @@ if (trainOpponentSelectEl && wrapOpponentCheckpointEl) {
   });
 }
 
+if (trainSideSelectEl) {
+  trainSideSelectEl.addEventListener("change", () => {
+    updateModelNamePlaceholder();
+  });
+}
+
+if (trainResumeSelectEl) {
+  trainResumeSelectEl.addEventListener("change", () => {
+    updateResumeStepInfo();
+    updateModelNamePlaceholder();
+  });
+}
+
 btnTrainStartEl.addEventListener("click", async () => {
   let steps;
   if (trainStepsEl && trainStepsEl.value === "custom") {
@@ -501,6 +557,9 @@ btnTrainStartEl.addEventListener("click", async () => {
   }
 
   const resumeCp = trainResumeSelectEl.value || null;
+  const customModelName = trainModelNameEl ? trainModelNameEl.value.trim() : "";
+  const nameSuffix = customModelName ? ` as "${customModelName}"` : "";
+  const parallelEnvs = parseInt(trainParallelSelectEl ? trainParallelSelectEl.value : "4", 10) || 4;
   btnTrainStartEl.disabled = true;
   const sideLabel = trainSide === "axis" ? "Axis (Nazi)" : "Soviet";
   const oppLabel = opponent === "checkpoint" ? `Checkpoint (${oppCheckpoint})` : "Normal AI";
@@ -508,17 +567,18 @@ btnTrainStartEl.addEventListener("click", async () => {
   if (resumeCp) {
     const priorSteps = checkpointSteps[resumeCp];
     const stepText = (priorSteps !== undefined && priorSteps !== null) ? ` (${priorSteps.toLocaleString()} steps already done)` : "";
-    showMessage(`Resuming ${sideLabel} training vs ${oppLabel} from ${resumeCp}${stepText} for ${steps.toLocaleString()} steps on GPU...`);
+    showMessage(`Resuming ${sideLabel} training vs ${oppLabel} from ${resumeCp}${stepText}${nameSuffix} [${parallelEnvs}x parallel] for ${steps.toLocaleString()} steps on GPU...`);
   } else {
-    showMessage(`Launching ${sideLabel} training vs ${oppLabel} (${steps.toLocaleString()} steps) from scratch on GPU...`);
+    showMessage(`Launching ${sideLabel} training vs ${oppLabel} (${steps.toLocaleString()} steps)${nameSuffix} [${parallelEnvs}x parallel] from scratch on GPU...`);
   }
   const res = await api("/api/training/start", {
     total_timesteps: steps,
-    num_envs: 4,
+    num_envs: parallelEnvs,
     resume_checkpoint: resumeCp,
     train_side: trainSide,
     opponent: opponent,
     opponent_checkpoint: oppCheckpoint,
+    model_name: customModelName || null,
   });
   if (res && res.training) renderTraining(res.training);
 });

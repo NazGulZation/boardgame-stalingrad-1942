@@ -253,6 +253,48 @@ class TestRLModel(unittest.TestCase):
         self.assertEqual(actions[-1][0], "end_turn")
         self.assertEqual(game.turn, "soviet")
 
+    def test_train_ppo_parse_args_model_name(self):
+        import sys
+        from unittest.mock import patch
+        from rl.train_ppo import parse_args
+        test_args = ["train_ppo.py", "--model-name", "custom_model_v1.pt", "--total-timesteps", "1000"]
+        with patch.object(sys, "argv", test_args):
+            args = parse_args()
+            self.assertEqual(args.model_name, "custom_model_v1.pt")
+            self.assertEqual(args.total_timesteps, 1000)
+
+    def test_train_ppo_parse_args_num_envs(self):
+        import sys
+        from unittest.mock import patch
+        from rl.train_ppo import parse_args
+        test_args = ["train_ppo.py", "--num-envs", "8", "--total-timesteps", "2048"]
+        with patch.object(sys, "argv", test_args):
+            args = parse_args()
+            self.assertEqual(args.num_envs, 8)
+            self.assertEqual(args.batch_size, 8 * args.num_steps)
+
+    def test_status_file_reward_history(self):
+        import tempfile
+        import json
+        import os
+        from rl.train_ppo import write_status
+        with tempfile.TemporaryDirectory() as tmpdir:
+            status_path = os.path.join(tmpdir, "train_status.json")
+            status_data = {
+                "status": "training",
+                "step": 512,
+                "reward": 0.125,
+                "reward_history": [[256, 0.08], [512, 0.125]],
+                "num_envs": 4,
+            }
+            write_status(status_path, status_data)
+            self.assertTrue(os.path.isfile(status_path))
+            with open(status_path, "r") as f:
+                loaded = json.load(f)
+            self.assertEqual(loaded["reward"], 0.125)
+            self.assertEqual(len(loaded["reward_history"]), 2)
+            self.assertEqual(loaded["num_envs"], 4)
+
 
 if __name__ == "__main__":
     unittest.main()

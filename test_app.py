@@ -1,5 +1,6 @@
 """Integration tests for app.py using the Flask test client (no server)."""
 
+import os
 import unittest
 from unittest import mock
 
@@ -274,6 +275,71 @@ class TestTrainingEndpoints(AppTestBase):
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
         self.assertEqual(data["turn"], "soviet")
+
+    @mock.patch.object(app_module.TRAINING_MANAGER, "start_training", return_value=(True, "started"))
+    def test_training_start_with_model_name(self, mock_start):
+        res = self.client.post("/api/training/start", json={
+            "total_timesteps": 10000,
+            "train_side": "axis",
+            "model_name": "my_axis_model",
+        })
+        self.assertEqual(res.status_code, 200)
+        mock_start.assert_called_once()
+        kwargs = mock_start.call_args[1]
+        self.assertEqual(kwargs["model_name"], "my_axis_model")
+
+    def test_generate_default_model_name(self):
+        tm = app_module.TRAINING_MANAGER
+        axis_name = tm._generate_default_model_name("axis")
+        self.assertTrue(axis_name.startswith("stalingrad_axis_v"))
+        self.assertTrue(axis_name.endswith(".pt"))
+        soviet_name = tm._generate_default_model_name("soviet")
+        self.assertTrue(soviet_name.startswith("stalingrad_soviet_v"))
+        self.assertTrue(soviet_name.endswith(".pt"))
+
+    def test_training_completed_auto_assigns_team_checkpoint(self):
+        import tempfile
+        import json
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from rl.train_manager import TrainingManager
+            tm = TrainingManager(checkpoints_dir=tmpdir)
+            # Create a dummy checkpoint file
+            test_cp = "test_auto_assign.pt"
+            with open(os.path.join(tmpdir, test_cp), "w") as f:
+                f.write("dummy")
+            # Write completed train status
+            status_data = {
+                "status": "completed",
+                "train_side": "axis",
+                "latest_checkpoint": os.path.join(tmpdir, test_cp),
+            }
+            with open(tm.status_file, "w") as f:
+                json.dump(status_data, f)
+
+            status = tm.get_status()
+            self.assertEqual(tm.team_checkpoints["axis"], test_cp)
+            self.assertEqual(status["team_checkpoints"]["axis"], test_cp)
+
+    @mock.patch.object(app_module.TRAINING_MANAGER, "start_training", return_value=(True, "started"))
+    def test_training_start_with_num_envs(self, mock_start):
+        res = self.client.post("/api/training/start", json={
+            "total_timesteps": 10000,
+            "num_envs": 8,
+            "train_side": "axis",
+        })
+        self.assertEqual(res.status_code, 200)
+        mock_start.assert_called_once()
+        kwargs = mock_start.call_args[1]
+        self.assertEqual(kwargs["num_envs"], 8)
+
+    def test_training_status_includes_reward_and_reward_history(self):
+        res = self.client.get("/api/training/status")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertIn("reward", data)
+        self.assertIn("reward_history", data)
+        self.assertIn("num_envs", data)
+        self.assertIsInstance(data["reward_history"], list)
 
 
 if __name__ == "__main__":
